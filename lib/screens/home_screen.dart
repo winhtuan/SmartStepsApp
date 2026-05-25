@@ -15,7 +15,7 @@ Future<void> runSmartStepsApp() async {
   await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
   await initializeSupabaseIfConfigured();
   await _configureGlobalAudio();
-  runApp(const SmartStepsApp());
+  runApp(SmartStepsApp());
 }
 
 Future<void> _configureGlobalAudio() async {
@@ -28,7 +28,10 @@ Future<void> _configureGlobalAudio() async {
 }
 
 class SmartStepsApp extends StatelessWidget {
-  const SmartStepsApp({super.key});
+  SmartStepsApp({super.key, SituationService? situationService})
+    : situationService = situationService ?? SituationService();
+
+  final SituationService situationService;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +70,8 @@ class SmartStepsApp extends StatelessWidget {
         onLogin: (context) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
-              builder: (_) => const _SmartStepsLandingPage(),
+              builder: (_) =>
+                  _SmartStepsLandingPage(situationService: situationService),
             ),
           );
         },
@@ -77,17 +81,28 @@ class SmartStepsApp extends StatelessWidget {
 }
 
 class _SmartStepsLandingPage extends StatefulWidget {
-  const _SmartStepsLandingPage();
+  const _SmartStepsLandingPage({required this.situationService});
+
+  final SituationService situationService;
 
   @override
   State<_SmartStepsLandingPage> createState() => _SmartStepsLandingPageState();
 }
 
 class _SmartStepsLandingPageState extends State<_SmartStepsLandingPage> {
+  List<SituationSummary> _situations = const [];
+  SafetyLesson? _activeLesson;
+  bool _isLoadingSituations = false;
+  int? _loadingSituationId;
+  String? _catalogError;
+
+  SituationService get _situationService => widget.situationService;
+
   @override
   void initState() {
     super.initState();
     unawaited(_enterLandingViewingMode());
+    unawaited(_loadSituations());
   }
 
   Future<void> _enterLandingViewingMode() async {
@@ -99,11 +114,108 @@ class _SmartStepsLandingPageState extends State<_SmartStepsLandingPage> {
     }
   }
 
+  Future<void> _loadSituations() async {
+    if (!_situationService.isEnabled) {
+      setState(() {
+        _catalogError =
+            'Missing SMARTSTEPS_API_BASE_URL. Run with --dart-define=SMARTSTEPS_API_BASE_URL=http://10.0.2.2:5078';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingSituations = true;
+      _catalogError = null;
+    });
+
+    try {
+      final situations = await _situationService.getSituations();
+      if (situations.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _situations = const [];
+            _activeLesson = null;
+            _catalogError = 'Backend returned no published lessons.';
+            _isLoadingSituations = false;
+          });
+        }
+        return;
+      }
+
+      final firstLesson = await _loadLesson(situations.first);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _situations = situations;
+        _activeLesson = firstLesson;
+        _isLoadingSituations = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps situation catalog failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          _catalogError = 'Không tải được dữ liệu backend';
+          _activeLesson = null;
+          _isLoadingSituations = false;
+        });
+      }
+    }
+  }
+
+  Future<SafetyLesson> _loadLesson(SituationSummary summary) async {
+    final detail = await _situationService.getSituationDetail(
+      summary.situationId,
+    );
+    return _lessonFromSituation(detail);
+  }
+
+  Future<void> _selectSituation(SituationSummary summary) async {
+    if (_loadingSituationId == summary.situationId) {
+      return;
+    }
+
+    setState(() {
+      _loadingSituationId = summary.situationId;
+      _catalogError = null;
+    });
+
+    try {
+      final lesson = await _loadLesson(summary);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _activeLesson = lesson;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps situation detail failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          _catalogError = 'Không tải được bài học';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingSituationId = null;
+        });
+      }
+    }
+  }
+
   Future<void> _openLesson() async {
+    final lesson = _activeLesson;
+    if (lesson == null) {
+      return;
+    }
+
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const LessonGameScreen(lesson: lessonOne),
-      ),
+      MaterialPageRoute<void>(builder: (_) => LessonGameScreen(lesson: lesson)),
     );
 
     if (mounted) {
@@ -113,6 +225,9 @@ class _SmartStepsLandingPageState extends State<_SmartStepsLandingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lesson = _activeLesson;
+    final canStartLesson = lesson != null && !_isLoadingSituations;
+
     return Scaffold(
       body: DecoratedBox(
         decoration: const BoxDecoration(
@@ -168,12 +283,14 @@ class _SmartStepsLandingPageState extends State<_SmartStepsLandingPage> {
                                 const _DockLabel('Bài 1'),
                                 const SizedBox(height: 6),
                                 Text(
-                                  lessonOne.title,
+                                  lesson?.title ?? 'Dang tai bai hoc',
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  lessonOne.mission,
+                                  lesson?.mission ??
+                                      _catalogError ??
+                                      'Dang ket noi toi backend SmartSteps.',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ],
@@ -193,19 +310,102 @@ class _SmartStepsLandingPageState extends State<_SmartStepsLandingPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                _LessonCatalogStrip(
+                  situations: _situations,
+                  activeLessonId: lesson?.id,
+                  isLoading: _isLoadingSituations,
+                  loadingSituationId: _loadingSituationId,
+                  error: _catalogError,
+                  onSelected: (summary) {
+                    unawaited(_selectSituation(summary));
+                  },
+                ),
                 const SizedBox(height: 16),
                 _PillButton(
                   label: 'Bắt đầu bài học',
                   icon: Icons.play_arrow_rounded,
                   color: GameColors.banana,
-                  onPressed: () {
-                    unawaited(_openLesson());
-                  },
+                  onPressed: canStartLesson
+                      ? () {
+                          unawaited(_openLesson());
+                        }
+                      : null,
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LessonCatalogStrip extends StatelessWidget {
+  const _LessonCatalogStrip({
+    required this.situations,
+    required this.activeLessonId,
+    required this.isLoading,
+    required this.loadingSituationId,
+    required this.error,
+    required this.onSelected,
+  });
+
+  final List<SituationSummary> situations;
+  final String? activeLessonId;
+  final bool isLoading;
+  final int? loadingSituationId;
+  final String? error;
+  final ValueChanged<SituationSummary> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (situations.isEmpty) {
+      return SizedBox(
+        height: 42,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: _DockLabel(
+            error ??
+                (isLoading ? 'Đang tải backend' : 'Chưa có bài học từ API'),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: situations.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final situation = situations[index];
+          final lessonId = 'situation-${situation.situationId}';
+          final isSelected = activeLessonId == lessonId;
+          final isBusy = loadingSituationId == situation.situationId;
+
+          return ChoiceChip(
+            selected: isSelected,
+            label: Text(
+              isBusy ? '...' : situation.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onSelected: (_) => onSelected(situation),
+            labelStyle: const TextStyle(
+              color: GameColors.ink,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+            backgroundColor: Colors.white.withValues(alpha: 0.72),
+            selectedColor: GameColors.banana,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.78)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+          );
+        },
       ),
     );
   }
@@ -302,14 +502,16 @@ class SafetyLesson {
 
 class LessonVideoCopy {
   const LessonVideoCopy({
-    required this.asset,
+    this.asset,
+    this.stepId,
     required this.title,
     required this.caption,
     required this.actionLabel,
     required this.skipLabel,
   });
 
-  final String asset;
+  final String? asset;
+  final int? stepId;
   final String title;
   final String caption;
   final String actionLabel;
@@ -332,6 +534,7 @@ class LessonChoice {
     required this.imageAsset,
     required this.voice,
     required this.tone,
+    required this.isCorrect,
   });
 
   final String id;
@@ -341,6 +544,7 @@ class LessonChoice {
   final String imageAsset;
   final LessonVoice voice;
   final ChoiceTone tone;
+  final bool isCorrect;
 }
 
 class ParentNotes {
@@ -353,6 +557,174 @@ class ParentNotes {
   final String skill;
   final String practice;
   final String risk;
+}
+
+SafetyLesson _lessonFromSituation(SituationDetail situation) {
+  final introStep = _stepByType(situation, 'Intro');
+  final flashcardStep = _stepByType(situation, 'Flashcard');
+  final wrongStep = _stepByType(situation, 'Story');
+  final correctStep = _stepByType(situation, 'Result');
+  final flashcard = situation.flashcard;
+  final question =
+      flashcard?.question ??
+      flashcardStep?.content ??
+      situation.intro ??
+      situation.title;
+  final correctAnswer = flashcard?.correctAnswer.toUpperCase() ?? 'B';
+  final skill = situation.skills.isNotEmpty ? situation.skills.first : null;
+  final parentReview = situation.parentReview;
+
+  return SafetyLesson(
+    id: 'situation-${situation.situationId}',
+    title: situation.title,
+    topic: skill?.name ?? situation.islandName,
+    ageRange: '4-9 tuổi',
+    sceneTitle: situation.islandName,
+    mission:
+        situation.intro ?? _shortCopy(introStep?.content) ?? situation.title,
+    openingHint: 'Bấm vào tình huống',
+    inspectQuestion: question,
+    questionVoice: LessonVoice(
+      asset: flashcard?.questionVoiceUrl ?? '',
+      text: question,
+    ),
+    videoIntro: _videoCopyFromStep(
+      step: introStep,
+      title: 'Cùng xem tình huống',
+      caption: introStep?.content ?? situation.intro ?? situation.title,
+      actionLabel: 'Bắt đầu intro',
+      skipLabel: 'Bỏ qua intro',
+    ),
+    videoCorrect: _videoCopyFromStep(
+      step: correctStep,
+      title: 'Cách xử lý an toàn',
+      caption: correctStep?.content ?? flashcard?.correctFeedback ?? '',
+      actionLabel: 'Xem kết quả đúng',
+      skipLabel: 'Bỏ qua clip',
+    ),
+    videoWrong: _videoCopyFromStep(
+      step: wrongStep,
+      title: 'Dừng lại và sửa lựa chọn',
+      caption: wrongStep?.content ?? flashcard?.wrongFeedback ?? '',
+      actionLabel: 'Xem kết quả sai',
+      skipLabel: 'Bỏ qua clip',
+    ),
+    wrongTitle: 'Khoan đã bé ơi!',
+    wrongExplanation:
+        flashcard?.wrongFeedback ?? _shortCopy(wrongStep?.content) ?? '',
+    correctTitle: 'Con làm đúng rồi!',
+    correctExplanation:
+        flashcard?.correctFeedback ?? _shortCopy(correctStep?.content) ?? '',
+    rewardTitle:
+        _rewardTitle(correctStep?.content) ?? 'Một ngôi sao an toàn cho bé!',
+    learningGoals: _learningGoalsFor(situation),
+    choices: [
+      _choiceFromFlashcard(
+        id: correctAnswer == 'A' ? correctChoiceId : 'option-a',
+        label: flashcard?.optionA ?? 'Lựa chọn A',
+        voiceUrl: flashcard?.optionAVoiceUrl,
+        isCorrect: correctAnswer == 'A',
+      ),
+      _choiceFromFlashcard(
+        id: correctAnswer == 'B' ? correctChoiceId : 'option-b',
+        label: flashcard?.optionB ?? 'Lựa chọn B',
+        voiceUrl: flashcard?.optionBVoiceUrl,
+        isCorrect: correctAnswer == 'B',
+      ),
+    ],
+    parentNotes: ParentNotes(
+      skill: skill?.description ?? situation.intro ?? situation.title,
+      practice:
+          parentReview?.questionText ??
+          'Cùng bé nhắc lại lựa chọn an toàn trong tình huống này.',
+      risk:
+          parentReview?.suggestedActivity ??
+          'Quan sát phản ứng của bé và luyện tập lại khi bé còn phân vân.',
+    ),
+  );
+}
+
+SituationStep? _stepByType(SituationDetail situation, String stepType) {
+  for (final step in situation.steps) {
+    if (step.stepType.toLowerCase() == stepType.toLowerCase()) {
+      return step;
+    }
+  }
+
+  return null;
+}
+
+LessonVideoCopy _videoCopyFromStep({
+  required SituationStep? step,
+  required String title,
+  required String caption,
+  required String actionLabel,
+  required String skipLabel,
+}) {
+  return LessonVideoCopy(
+    stepId: step?.stepId,
+    asset: step?.mediaUrl,
+    title: title,
+    caption: caption,
+    actionLabel: actionLabel,
+    skipLabel: skipLabel,
+  );
+}
+
+LessonChoice _choiceFromFlashcard({
+  required String id,
+  required String label,
+  required String? voiceUrl,
+  required bool isCorrect,
+}) {
+  return LessonChoice(
+    id: id,
+    label: label,
+    helper: isCorrect ? 'An toàn' : 'Không an toàn',
+    accessibilityLabel: '$label. ${isCorrect ? 'An toàn.' : 'Không an toàn.'}',
+    imageAsset: isCorrect ? LessonAssets.mother : LessonAssets.childChoking,
+    voice: LessonVoice(asset: voiceUrl ?? '', text: label),
+    tone: isCorrect ? ChoiceTone.safe : ChoiceTone.danger,
+    isCorrect: isCorrect,
+  );
+}
+
+List<String> _learningGoalsFor(SituationDetail situation) {
+  final goals = situation.skills
+      .map((skill) => skill.description ?? skill.name)
+      .where((goal) => goal.trim().isNotEmpty)
+      .toList(growable: false);
+
+  if (goals.isNotEmpty) {
+    return goals;
+  }
+
+  return [situation.intro ?? situation.title];
+}
+
+String? _shortCopy(String? value) {
+  final text = value?.trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+
+  return text.length <= 220 ? text : '${text.substring(0, 217)}...';
+}
+
+String? _rewardTitle(String? value) {
+  final text = value?.trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+
+  final rewardIndex = text.toLowerCase().indexOf('reward:');
+  if (rewardIndex < 0) {
+    return null;
+  }
+
+  final reward = text.substring(rewardIndex + 'reward:'.length).trim();
+  final endIndex = reward.indexOf('.');
+  return endIndex < 0 ? reward : reward.substring(0, endIndex).trim();
 }
 
 const correctChoiceId = 'ask-adult';
@@ -374,86 +746,66 @@ final _voiceAudioContext = AudioContext(
   ),
 );
 
-const lessonOne = SafetyLesson(
-  id: 'lesson-1-shiny-round-object',
-  title: 'Bài 1: Vật tròn lấp lánh',
-  topic: 'An toàn dị vật',
-  ageRange: '4-9 tuổi',
-  sceneTitle: 'Phòng khách an toàn',
-  mission: 'Giúp bé chọn cách xử lý khi thấy vật nhỏ lạ trên sàn.',
-  videoIntro: LessonVideoCopy(
-    asset: 'assets/videos/lesson1-intro.mp4',
-    title: 'Cùng xem tình huống đầu tiên',
-    caption:
-        'Sau đoạn intro, bé sẽ chọn cách xử lý an toàn ngay trên flash card.',
-    actionLabel: 'Bắt đầu intro',
-    skipLabel: 'Bỏ qua intro',
-  ),
-  videoCorrect: LessonVideoCopy(
-    asset: 'assets/videos/lesson1-correct.mp4',
-    title: 'Cách xử lý an toàn',
-    caption: 'Clip này cho bé thấy lựa chọn đúng khi nhặt được vật nhỏ lạ.',
-    actionLabel: 'Xem video đúng',
-    skipLabel: 'Bỏ qua clip',
-  ),
-  videoWrong: LessonVideoCopy(
-    asset: 'assets/videos/lesson1-wrong.mp4',
-    title: 'Dừng lại và sửa lựa chọn',
-    caption: 'Clip này nhắc bé vì sao không nên cho vật nhỏ lạ vào miệng.',
-    actionLabel: 'Xem video sai',
-    skipLabel: 'Bỏ qua clip',
-  ),
-  openingHint: 'Bấm vào vật lấp lánh',
-  inspectQuestion: 'Con sẽ làm gì khi thấy vật nhỏ lạ trên sàn?',
-  questionVoice: LessonVoice(
-    asset: 'assets/voices/lesson1/question.mp3',
-    text: 'Đó không phải là kẹo đâu bé ơi. Con chọn cách an toàn nhé.',
-  ),
-  wrongTitle: 'Khoan đã bé ơi!',
-  wrongExplanation:
-      'Vật nhỏ lạ có thể làm mình bị hóc. Mình không đưa vào miệng nhé.',
-  correctTitle: 'Con làm đúng rồi!',
-  correctExplanation: 'Mang vật lạ đến cho bố mẹ là cách an toàn nhất.',
-  rewardTitle: 'Một ngôi sao an toàn cho bé!',
-  learningGoals: [
-    'Không bỏ vật nhỏ lạ vào miệng.',
-    'Biết đưa vật lạ cho người lớn.',
-    'Phân biệt đồ ăn được và đồ vật nguy hiểm.',
-  ],
-  choices: [
-    LessonChoice(
-      id: 'put-mouth',
-      label: 'Cho vào miệng',
-      helper: 'Không an toàn',
-      accessibilityLabel: 'Cho vật nhỏ vào miệng. Không an toàn.',
-      imageAsset: LessonAssets.childChoking,
-      voice: LessonVoice(
-        asset: 'assets/voices/lesson1/choice-put-mouth-loud.mp3',
-        text: 'Cho vật nhỏ vào miệng. Không an toàn.',
-      ),
-      tone: ChoiceTone.danger,
-    ),
-    LessonChoice(
-      id: correctChoiceId,
-      label: 'Đưa cho bố mẹ',
-      helper: 'An toàn',
-      accessibilityLabel: 'Đưa vật nhỏ cho bố mẹ. Đây là cách an toàn.',
-      imageAsset: LessonAssets.mother,
-      voice: LessonVoice(
-        asset: 'assets/voices/lesson1/choice-ask-adult.mp3',
-        text: 'Đưa vật nhỏ cho bố mẹ. Đây là cách an toàn.',
-      ),
-      tone: ChoiceTone.safe,
-    ),
-  ],
-  parentNotes: ParentNotes(
-    skill: 'Bé tập nhận ra vật nhỏ có thể gây nguy hiểm nếu đưa vào miệng.',
-    practice:
-        'Cùng bé đi quanh nhà, chỉ vào các vật nhỏ và nói: thấy vật lạ thì gọi người lớn.',
-    risk:
-        'Đồng xu, viên bi, nút áo, pin nhỏ và hạt cứng có thể gây hóc hoặc nghẹt thở.',
-  ),
-);
+final _mediaResolver = _BackendMediaResolver(SituationService());
+
+String _voiceAssetPath(String asset) {
+  const assetsPrefix = 'assets/';
+  return asset.startsWith(assetsPrefix)
+      ? asset.substring(assetsPrefix.length)
+      : asset;
+}
+
+class _BackendMediaResolver {
+  _BackendMediaResolver(this._situationService);
+
+  final SituationService _situationService;
+  final Map<int, SignedMediaUrl> _signedUrlCache = {};
+  final Map<String, SignedMediaUrl> _signedVoiceUrlCache = {};
+
+  Future<Uri?> signedVideoUrlFor(LessonVideoCopy copy) async {
+    final stepId = copy.stepId;
+    if (stepId == null || copy.asset == null || copy.asset!.trim().isEmpty) {
+      return null;
+    }
+
+    if (!_situationService.isEnabled) {
+      throw const MediaConfigurationException(
+        'SMARTSTEPS_API_BASE_URL is not configured.',
+      );
+    }
+
+    final cachedUrl = _signedUrlCache[stepId];
+    if (cachedUrl != null && cachedUrl.isFresh) {
+      return cachedUrl.uri;
+    }
+
+    final signedUrl = await _situationService.createSignedMediaUrl(stepId);
+    _signedUrlCache[stepId] = signedUrl;
+    return signedUrl.uri;
+  }
+
+  Future<Uri?> signedVoiceUrlFor(String asset) async {
+    final mediaUrl = asset.trim();
+    if (mediaUrl.isEmpty || mediaUrl.startsWith('assets/')) {
+      return null;
+    }
+
+    if (!_situationService.isEnabled) {
+      throw const MediaConfigurationException(
+        'SMARTSTEPS_API_BASE_URL is not configured.',
+      );
+    }
+
+    final cachedUrl = _signedVoiceUrlCache[mediaUrl];
+    if (cachedUrl != null && cachedUrl.isFresh) {
+      return cachedUrl.uri;
+    }
+
+    final signedUrl = await _situationService.createSignedVoiceUrl(mediaUrl);
+    _signedVoiceUrlCache[mediaUrl] = signedUrl;
+    return signedUrl.uri;
+  }
+}
 
 class LessonGameScreen extends StatefulWidget {
   const LessonGameScreen({super.key, required this.lesson});
@@ -565,9 +917,14 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   void _selectChoice(String choiceId) {
+    final selectedChoice = widget.lesson.choices.firstWhere(
+      (choice) => choice.id == choiceId,
+      orElse: () => widget.lesson.choices.last,
+    );
+
     setState(() {
       _selectedChoiceId = choiceId;
-      _phase = choiceId == correctChoiceId
+      _phase = selectedChoice.isCorrect
           ? LessonPhase.correctVideo
           : LessonPhase.wrongVideo;
     });
@@ -642,6 +999,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                         _QuestionOverlay(
                           lesson: lesson,
                           selectedChoice: _selectedChoice,
+                          isParentReadingMode: _parentReadingMode,
                           onSelectChoice: _selectChoice,
                         ),
                       if (_phase == LessonPhase.rewardBurst)
@@ -805,36 +1163,75 @@ class _StoryClipStage extends StatefulWidget {
 }
 
 class _StoryClipStageState extends State<_StoryClipStage> {
-  late final VideoPlayerController _videoController;
+  VideoPlayerController? _videoController;
   bool _hasStartedPlayback = false;
   bool _hasFinishedVideo = false;
+  bool _hasVideoLoadFailed = false;
+  String? _videoLoadErrorMessage;
 
   bool get _isWrong => widget.variant == LessonPhase.wrongVideo;
-  bool get _isReady => _videoController.value.isInitialized;
-  bool get _isPlaying => _videoController.value.isPlaying;
+  bool get _isReady => _videoController?.value.isInitialized ?? false;
+  bool get _isPlaying => _videoController?.value.isPlaying ?? false;
 
   double get _progress {
-    if (!_isReady || _videoController.value.duration.inMilliseconds == 0) {
+    final controller = _videoController;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        controller.value.duration.inMilliseconds == 0) {
       return 0;
     }
 
-    final position = _videoController.value.position.inMilliseconds;
-    final duration = _videoController.value.duration.inMilliseconds;
+    final position = controller.value.position.inMilliseconds;
+    final duration = controller.value.duration.inMilliseconds;
     return (position / duration).clamp(0.0, 1.0).toDouble();
   }
 
   @override
   void initState() {
     super.initState();
+    unawaited(_initializeVideoController());
+  }
 
-    _videoController =
-        VideoPlayerController.asset(
-            widget.copy.asset,
-            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
-          )
-          ..addListener(_handleVideoTick)
-          ..setLooping(false);
-    _videoController.initialize().then((_) async {
+  Future<void> _initializeVideoController() async {
+    VideoPlayerController? controller;
+    final mediaAsset = widget.copy.asset?.trim();
+
+    if (mediaAsset == null || mediaAsset.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _hasVideoLoadFailed = true;
+          _videoLoadErrorMessage =
+              'No media URL is configured for this lesson step.';
+        });
+      }
+      return;
+    }
+
+    try {
+      final remoteVideoUrl = await _mediaResolver.signedVideoUrlFor(
+        widget.copy,
+      );
+      controller = remoteVideoUrl != null
+          ? VideoPlayerController.networkUrl(
+              remoteVideoUrl,
+              videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
+            )
+          : throw const MediaConfigurationException(
+              'Backend did not return a signed media URL.',
+            );
+
+      controller
+        ..addListener(_handleVideoTick)
+        ..setLooping(false);
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      _videoController = controller;
+      await controller.initialize();
+
       if (!mounted) {
         return;
       }
@@ -845,13 +1242,29 @@ class _StoryClipStageState extends State<_StoryClipStage> {
       if (mounted) {
         setState(() {});
       }
-    });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps video load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (controller != null) {
+        controller.removeListener(_handleVideoTick);
+        await controller.dispose();
+      }
+      if (mounted) {
+        setState(() {
+          _hasVideoLoadFailed = true;
+          _videoLoadErrorMessage = error.toString();
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
-    _videoController.removeListener(_handleVideoTick);
-    _videoController.dispose();
+    final controller = _videoController;
+    if (controller != null) {
+      controller.removeListener(_handleVideoTick);
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -860,7 +1273,12 @@ class _StoryClipStageState extends State<_StoryClipStage> {
       return;
     }
 
-    final value = _videoController.value;
+    final controller = _videoController;
+    if (controller == null) {
+      return;
+    }
+
+    final value = controller.value;
     if (value.isInitialized && !_hasStartedPlayback) {
       unawaited(_autoplayClip());
     }
@@ -884,27 +1302,28 @@ class _StoryClipStageState extends State<_StoryClipStage> {
   }
 
   Future<void> _startClipFromBeginning() async {
-    if (!_isReady) {
+    final controller = _videoController;
+    if (controller == null || !controller.value.isInitialized) {
       return;
     }
 
     _hasFinishedVideo = false;
-    await _videoController.seekTo(Duration.zero);
+    await controller.seekTo(Duration.zero);
 
     try {
-      await _videoController.setVolume(1.0);
+      await controller.setVolume(1.0);
     } catch (_) {
       // Keep playback usable on platforms that do not expose volume control.
     }
 
     try {
-      await _videoController.setPlaybackSpeed(1.0);
+      await controller.setPlaybackSpeed(1.0);
     } catch (_) {
       // Keep the clip usable even if a platform cannot apply playback speed.
     }
 
     try {
-      await _videoController.play();
+      await controller.play();
     } catch (_) {
       // Autoplay can be blocked on some hosts; the clip remains visible.
     }
@@ -923,8 +1342,11 @@ class _StoryClipStageState extends State<_StoryClipStage> {
   }
 
   Future<void> _skipClip() async {
-    if (_isReady && _videoController.value.isPlaying) {
-      await _videoController.pause();
+    final controller = _videoController;
+    if (controller != null &&
+        controller.value.isInitialized &&
+        controller.value.isPlaying) {
+      await controller.pause();
     }
     widget.onFinished();
   }
@@ -932,7 +1354,10 @@ class _StoryClipStageState extends State<_StoryClipStage> {
   @override
   Widget build(BuildContext context) {
     final accent = _isWrong ? GameColors.danger : GameColors.safe;
-    final aspectRatio = _isReady ? _videoController.value.aspectRatio : 16 / 9;
+    final controller = _videoController;
+    final aspectRatio = _isReady && controller != null
+        ? controller.value.aspectRatio
+        : 16 / 9;
 
     return ColoredBox(
       color: Colors.black,
@@ -945,8 +1370,14 @@ class _StoryClipStageState extends State<_StoryClipStage> {
               child: ColoredBox(
                 color: Colors.black,
                 child: _isReady
-                    ? VideoPlayer(_videoController)
-                    : const Center(child: _VideoLoadingBadge()),
+                    ? VideoPlayer(controller!)
+                    : Center(
+                        child: _hasVideoLoadFailed
+                            ? _VideoLoadErrorBadge(
+                                message: _videoLoadErrorMessage,
+                              )
+                            : const _VideoLoadingBadge(),
+                      ),
               ),
             ),
           ),
@@ -1068,6 +1499,37 @@ class _VideoLoadingBadge extends StatelessWidget {
       child: const Text(
         'Đang chuẩn bị video...',
         style: TextStyle(
+          color: GameColors.ink,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoLoadErrorBadge extends StatelessWidget {
+  const _VideoLoadErrorBadge({this.message});
+
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: Text(
+        message == null || message!.isEmpty
+            ? 'Khong tai duoc video'
+            : 'Khong tai duoc video: $message',
+        maxLines: 4,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
           color: GameColors.ink,
           fontSize: 12,
           fontWeight: FontWeight.w900,
@@ -1376,11 +1838,13 @@ class _QuestionOverlay extends StatefulWidget {
   const _QuestionOverlay({
     required this.lesson,
     required this.selectedChoice,
+    required this.isParentReadingMode,
     required this.onSelectChoice,
   });
 
   final SafetyLesson lesson;
   final LessonChoice? selectedChoice;
+  final bool isParentReadingMode;
   final ValueChanged<String> onSelectChoice;
 
   @override
@@ -1389,7 +1853,7 @@ class _QuestionOverlay extends StatefulWidget {
 
 class _QuestionOverlayState extends State<_QuestionOverlay> {
   late final AudioPlayer _voicePlayer;
-  String? _activeNarrationId = 'question';
+  String? _activeNarrationId;
   bool _hasPlayedOpeningNarration = false;
   int _openingSequenceId = 0;
   int _voiceRequestId = 0;
@@ -1417,7 +1881,33 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   @override
   void initState() {
     super.initState();
+    _activeNarrationId = widget.isParentReadingMode ? null : 'question';
     _voicePlayer = AudioPlayer();
+    if (!widget.isParentReadingMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_playOpeningNarrationOnce());
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuestionOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.isParentReadingMode == oldWidget.isParentReadingMode) {
+      return;
+    }
+
+    if (widget.isParentReadingMode) {
+      _openingSequenceId++;
+      _voiceRequestId++;
+      _hasPlayedOpeningNarration = false;
+      _activeNarrationId = null;
+      unawaited(_stopVoicePlayer());
+      return;
+    }
+
+    _activeNarrationId = 'question';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_playOpeningNarrationOnce());
     });
@@ -1486,7 +1976,27 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
         return;
       }
 
-      final assetPath = item.asset.replaceFirst('assets/', '');
+      if (item.asset.trim().isEmpty) {
+        continue;
+      }
+
+      final assetPath = _voiceAssetPath(item.asset);
+      Uri? remoteVoiceUrl;
+      try {
+        remoteVoiceUrl = await _mediaResolver.signedVoiceUrlFor(item.asset);
+      } catch (error, stackTrace) {
+        debugPrint('SmartSteps voice signing failed for $assetPath: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+      if (remoteVoiceUrl != null) {
+        debugPrint('SmartSteps voice signed: $assetPath');
+        continue;
+      }
+
+      if (!item.asset.trim().startsWith('assets/')) {
+        continue;
+      }
+
       try {
         await rootBundle.load(item.asset);
         await _voicePlayer.audioCache.loadPath(assetPath);
@@ -1499,7 +2009,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   }
 
   Future<void> _playOpeningNarrationOnce() async {
-    if (_hasPlayedOpeningNarration) {
+    if (_hasPlayedOpeningNarration || widget.isParentReadingMode) {
       return;
     }
 
@@ -1541,11 +2051,19 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   }
 
   Future<void> _playNarration(String id, String asset, String text) async {
+    if (widget.isParentReadingMode) {
+      return;
+    }
+
     _openingSequenceId++;
     await _playNarrationAsset(id, asset, text: text, clearWhenFinished: true);
   }
 
   void _focusNarration(String id, String asset) {
+    if (widget.isParentReadingMode) {
+      return;
+    }
+
     unawaited(_playNarration(id, asset, _narrationTextFor(id)));
   }
 
@@ -1569,28 +2087,58 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     required String text,
     required bool clearWhenFinished,
   }) async {
+    if (widget.isParentReadingMode) {
+      return false;
+    }
+
     final requestId = ++_voiceRequestId;
-    final assetPath = asset.replaceFirst('assets/', '');
+    if (asset.trim().isEmpty) {
+      setState(() {
+        _activeNarrationId = id;
+      });
+      await Future<void>.delayed(_fallbackDurationFor(id));
+      if (mounted && clearWhenFinished && requestId == _voiceRequestId) {
+        setState(() {
+          _activeNarrationId = null;
+        });
+      }
+      return true;
+    }
 
-    setState(() {
-      _activeNarrationId = id;
-    });
-
+    final assetPath = _voiceAssetPath(asset);
     try {
+      final remoteVoiceUrl = await _mediaResolver.signedVoiceUrlFor(asset);
+
+      setState(() {
+        _activeNarrationId = id;
+      });
+
       await _stopVoicePlayer();
       if (!mounted || requestId != _voiceRequestId) {
         return false;
       }
 
-      await rootBundle.load(asset);
-      if (!mounted || requestId != _voiceRequestId) {
-        return false;
-      }
       await _prepareVoicePlayer();
       if (!mounted || requestId != _voiceRequestId) {
         return false;
       }
-      await _voicePlayer.setSourceAsset(assetPath, mimeType: 'audio/mpeg');
+
+      if (remoteVoiceUrl == null) {
+        if (!asset.trim().startsWith('assets/')) {
+          debugPrint('SmartSteps voice has no signed URL: $assetPath');
+          return false;
+        }
+
+        await rootBundle.load(asset);
+        if (!mounted || requestId != _voiceRequestId) {
+          return false;
+        }
+        await _voicePlayer.setSourceAsset(assetPath, mimeType: 'audio/mpeg');
+      } else {
+        await _voicePlayer.setSource(
+          UrlSource(remoteVoiceUrl.toString(), mimeType: 'audio/mpeg'),
+        );
+      }
       if (!mounted || requestId != _voiceRequestId) {
         return false;
       }
@@ -1598,10 +2146,9 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
           .where((state) => state == PlayerState.playing)
           .first
           .timeout(_voiceStartTimeout, onTimeout: () => _voicePlayer.state);
-      final completeFuture = _voicePlayer.onPlayerComplete.first.timeout(
-        _voicePlaybackTimeout,
-        onTimeout: () {},
-      );
+      final completeFuture = _voicePlayer.onPlayerComplete.first
+          .then<void>((_) {})
+          .timeout(_voicePlaybackTimeout, onTimeout: () {});
       await _voicePlayer.resume();
       final startState = await startedFuture;
       final didStart =
