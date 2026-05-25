@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'register_screen.dart';
+
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key, this.onLogin});
 
@@ -77,22 +79,73 @@ class LoginScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text.rich(
-                            TextSpan(
-                              children: const [
-                                TextSpan(text: 'Bạn chưa có tài khoản? '),
-                                TextSpan(
-                                  text: 'Đăng ký',
-                                  style: TextStyle(color: Color(0xFFFF3F3F)),
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Bạn chưa có tài khoản?',
+                                  style: TextStyle(
+                                    color: Color(0xFF7A7A7A),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    height: 1.6,
+                                  ),
                                 ),
-                              ],
-                            ),
-                            style: const TextStyle(
-                              color: Color(0xFF7A7A7A),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              height: 1.6,
-                            ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    PageRouteBuilder<void>(
+                                      pageBuilder:
+                                          (
+                                            context,
+                                            animation,
+                                            secondaryAnimation,
+                                          ) => RegisterScreen(
+                                            onRegister: onLogin,
+                                          ),
+                                      transitionsBuilder:
+                                          (
+                                            context,
+                                            animation,
+                                            secondaryAnimation,
+                                            child,
+                                          ) {
+                                            final curvedAnimation =
+                                                CurvedAnimation(
+                                                  parent: animation,
+                                                  curve: Curves.easeOutCubic,
+                                                  reverseCurve:
+                                                      Curves.easeInCubic,
+                                                );
+
+                                            return SlideTransition(
+                                              position: Tween<Offset>(
+                                                begin: const Offset(0, 1),
+                                                end: Offset.zero,
+                                              ).animate(curvedAnimation),
+                                              child: child,
+                                            );
+                                          },
+                                    ),
+                                  );
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(64, 32),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Đăng ký',
+                                  style: TextStyle(
+                                    color: Color(0xFFFF3F3F),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 26),
                           const _LoginInput(label: 'Email'),
