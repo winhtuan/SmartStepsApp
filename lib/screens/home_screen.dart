@@ -7,11 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:video_player/video_player.dart';
 
+import '../services/supabase_config.dart';
 import 'login_screen.dart';
 
 Future<void> runSmartStepsApp() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
+  await initializeSupabaseIfConfigured();
   await _configureGlobalAudio();
   runApp(const SmartStepsApp());
 }

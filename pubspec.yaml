@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   video_player: ^2.11.1
   audioplayers: ^6.6.0
+  supabase_flutter: ^2.12.4
+  flutter_dotenv: ^6.0.1
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +63,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - .env
     - assets/images/
     - assets/videos/
     - assets/voices/lesson1/
