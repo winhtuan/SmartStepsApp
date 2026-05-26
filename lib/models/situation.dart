@@ -1,3 +1,35 @@
+class IslandSummary {
+  const IslandSummary({
+    required this.islandId,
+    required this.name,
+    required this.orderIndex,
+    required this.status,
+    required this.situationCount,
+    this.description,
+    this.imageUrl,
+  });
+
+  factory IslandSummary.fromJson(Map<String, dynamic> json) {
+    return IslandSummary(
+      islandId: _readInt(json['islandId']),
+      name: _readString(json['name']),
+      description: _readNullableString(json['description']),
+      imageUrl: _readNullableString(json['imageUrl']),
+      orderIndex: _readInt(json['orderIndex']),
+      status: _readString(json['status']),
+      situationCount: _readInt(json['situationCount']),
+    );
+  }
+
+  final int islandId;
+  final String name;
+  final String? description;
+  final String? imageUrl;
+  final int orderIndex;
+  final String status;
+  final int situationCount;
+}
+
 class SituationSummary {
   const SituationSummary({
     required this.situationId,

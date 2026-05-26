@@ -23,10 +23,23 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('login-submit-button')));
     await tester.pumpAndSettle();
 
+    expect(situationService.detailCalls, 0);
+    expect(find.byKey(const ValueKey('island-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('island-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('island-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('situation-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('situation-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('situation-1')));
+    await tester.pumpAndSettle();
+
     expect(situationService.detailCalls, 1);
     expect(find.text(_fakeSummary.title), findsWidgets);
 
-    await tester.tap(find.text('Bắt đầu bài học'));
+    await tester.tap(find.byKey(const ValueKey('start-lesson-button')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
 
@@ -60,6 +73,42 @@ final _fakeSummary = SituationSummary(
   islandName: 'API Island',
   title: 'API Lesson',
   intro: 'Loaded from backend API',
+  orderIndex: 1,
+  status: 'Published',
+);
+
+final _fakeIsland = IslandSummary(
+  islandId: 1,
+  name: 'API Island',
+  orderIndex: 1,
+  status: 'Active',
+  situationCount: 2,
+);
+
+final _otherIsland = IslandSummary(
+  islandId: 2,
+  name: 'Another Island',
+  orderIndex: 2,
+  status: 'Active',
+  situationCount: 1,
+);
+
+final _secondSummary = SituationSummary(
+  situationId: 2,
+  islandId: 1,
+  islandName: 'API Island',
+  title: 'Second API Lesson',
+  intro: 'Same island lesson',
+  orderIndex: 2,
+  status: 'Published',
+);
+
+final _otherIslandSummary = SituationSummary(
+  situationId: 3,
+  islandId: 2,
+  islandName: 'Another Island',
+  title: 'Other Island Lesson',
+  intro: 'Another island lesson',
   orderIndex: 1,
   status: 'Published',
 );
@@ -131,7 +180,16 @@ class _FakeSituationService extends SituationService {
   int detailCalls = 0;
 
   @override
-  Future<List<SituationSummary>> getSituations() async => [_fakeSummary];
+  Future<List<IslandSummary>> getIslands() async => [_fakeIsland, _otherIsland];
+
+  @override
+  Future<List<SituationSummary>> getIslandSituations(int islandId) async {
+    return switch (islandId) {
+      1 => [_fakeSummary, _secondSummary],
+      2 => [_otherIslandSummary],
+      _ => const [],
+    };
+  }
 
   @override
   Future<SituationDetail> getSituationDetail(int situationId) async {

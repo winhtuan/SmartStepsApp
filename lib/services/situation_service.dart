@@ -15,10 +15,50 @@ class SituationService {
 
   bool get isEnabled => _baseUri != null;
 
+  Future<List<IslandSummary>> getIslands() async {
+    Object? json;
+    try {
+      json = await _getJson('/api/islands');
+    } on HttpException {
+      final situations = await getSituations();
+      return _islandsFromSituations(situations);
+    }
+
+    if (json is! List) {
+      throw const FormatException('Expected a list of islands.');
+    }
+
+    return json
+        .whereType<Map<String, dynamic>>()
+        .map(IslandSummary.fromJson)
+        .toList(growable: false);
+  }
+
   Future<List<SituationSummary>> getSituations() async {
     final json = await _getJson('/api/situations');
     if (json is! List) {
       throw const FormatException('Expected a list of situations.');
+    }
+
+    return json
+        .whereType<Map<String, dynamic>>()
+        .map(SituationSummary.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<List<SituationSummary>> getIslandSituations(int islandId) async {
+    Object? json;
+    try {
+      json = await _getJson('/api/islands/$islandId/situations');
+    } on HttpException {
+      final situations = await getSituations();
+      return situations
+          .where((situation) => situation.islandId == islandId)
+          .toList(growable: false);
+    }
+
+    if (json is! List) {
+      throw const FormatException('Expected a list of island situations.');
     }
 
     return json
@@ -182,6 +222,36 @@ class SituationService {
   }
 
   static const _requestTimeout = Duration(seconds: 8);
+}
+
+List<IslandSummary> _islandsFromSituations(List<SituationSummary> situations) {
+  final grouped = <int, List<SituationSummary>>{};
+  for (final situation in situations) {
+    grouped.putIfAbsent(situation.islandId, () => []).add(situation);
+  }
+
+  final islands = grouped.entries
+      .map((entry) {
+        final lessons = entry.value.toList(growable: false)
+          ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+        return IslandSummary(
+          islandId: entry.key,
+          name: lessons.first.islandName,
+          orderIndex: lessons.first.orderIndex,
+          status: 'Active',
+          situationCount: lessons.length,
+        );
+      })
+      .toList(growable: false);
+
+  return islands..sort((a, b) {
+    final orderCompare = a.orderIndex.compareTo(b.orderIndex);
+    if (orderCompare != 0) {
+      return orderCompare;
+    }
+
+    return a.name.compareTo(b.name);
+  });
 }
 
 class MediaConfigurationException implements Exception {

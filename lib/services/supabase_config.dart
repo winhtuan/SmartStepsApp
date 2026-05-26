@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
@@ -12,22 +11,14 @@ class SupabaseConfig {
     defaultValue: 'avatars',
   );
 
-  static String get url => dotenv.env['SUPABASE_URL'] ?? _urlDefine;
-  static String get anonKey =>
-      dotenv.env['SUPABASE_ANON_KEY'] ?? _anonKeyDefine;
-  static String get avatarBucket =>
-      dotenv.env['SUPABASE_AVATAR_BUCKET'] ?? _avatarBucketDefine;
+  static String get url => _urlDefine;
+  static String get anonKey => _anonKeyDefine;
+  static String get avatarBucket => _avatarBucketDefine;
 
   static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
 }
 
 Future<void> initializeSupabaseIfConfigured() async {
-  try {
-    await dotenv.load();
-  } catch (_) {
-    // Keep local env optional so tests and CI can run without Supabase keys.
-  }
-
   if (!SupabaseConfig.isConfigured) {
     return;
   }

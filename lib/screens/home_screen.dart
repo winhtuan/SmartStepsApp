@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:smartsteps/models/situation.dart';
+import 'package:smartsteps/services/situation_service.dart';
 import 'package:video_player/video_player.dart';
 
 import '../services/supabase_config.dart';
@@ -71,7 +73,7 @@ class SmartStepsApp extends StatelessWidget {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) =>
-                  _SmartStepsLandingPage(situationService: situationService),
+                  SmartStepsCatalogPage(situationService: situationService),
             ),
           );
         },
@@ -80,16 +82,1000 @@ class SmartStepsApp extends StatelessWidget {
   }
 }
 
-class _SmartStepsLandingPage extends StatefulWidget {
-  const _SmartStepsLandingPage({required this.situationService});
+class SmartStepsCatalogPage extends StatefulWidget {
+  const SmartStepsCatalogPage({super.key, required this.situationService});
 
   final SituationService situationService;
 
   @override
-  State<_SmartStepsLandingPage> createState() => _SmartStepsLandingPageState();
+  State<SmartStepsCatalogPage> createState() => _SmartStepsCatalogPageState();
 }
 
-class _SmartStepsLandingPageState extends State<_SmartStepsLandingPage> {
+class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
+  List<_IslandCatalogEntry> _islands = _fallbackIslandEntries;
+  List<SituationSummary> _situations = const [];
+  int? _selectedIslandId;
+  SafetyLesson? _activeLesson;
+  bool _isLoadingCatalog = false;
+  bool _isLoadingIslandSituations = false;
+  int? _loadingSituationId;
+  String? _catalogError;
+
+  SituationService get _situationService => widget.situationService;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_enterCatalogViewingMode());
+    unawaited(_loadCatalog());
+  }
+
+  Future<void> _enterCatalogViewingMode() async {
+    try {
+      await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } catch (_) {
+      // Some desktop/test hosts do not expose system chrome controls.
+    }
+  }
+
+  Future<void> _loadCatalog() async {
+    if (!_situationService.isEnabled) {
+      setState(() {
+        _islands = _fallbackIslandEntries;
+        _situations = const [];
+        _selectedIslandId = null;
+        _activeLesson = null;
+        _isLoadingCatalog = false;
+        _isLoadingIslandSituations = false;
+        _catalogError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingCatalog = true;
+      _isLoadingIslandSituations = false;
+      _catalogError = null;
+      _activeLesson = null;
+      _loadingSituationId = null;
+    });
+
+    try {
+      final islands = await _situationService.getIslands();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _islands = islands.isEmpty
+            ? _fallbackIslandEntries
+            : islands
+                  .map(_IslandCatalogEntry.fromSummary)
+                  .toList(growable: false);
+        _situations = const [];
+        _selectedIslandId = null;
+        _activeLesson = null;
+        _isLoadingCatalog = false;
+        _catalogError = null;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps situation catalog failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _islands = _fallbackIslandEntries;
+        _situations = const [];
+        _selectedIslandId = null;
+        _activeLesson = null;
+        _isLoadingCatalog = false;
+        _isLoadingIslandSituations = false;
+        _catalogError = null;
+      });
+    }
+  }
+
+  void _selectIsland(_IslandCatalogEntry island) {
+    setState(() {
+      _selectedIslandId = island.islandId;
+      _situations = const [];
+      _activeLesson = null;
+      _loadingSituationId = null;
+      _catalogError = null;
+      _isLoadingIslandSituations = true;
+    });
+    unawaited(_loadIslandSituations(island));
+  }
+
+  Future<void> _loadIslandSituations(_IslandCatalogEntry island) async {
+    try {
+      final situations = await _situationService.getIslandSituations(
+        island.islandId,
+      );
+      if (!mounted || _selectedIslandId != island.islandId) {
+        return;
+      }
+
+      setState(() {
+        _situations = situations;
+        _isLoadingIslandSituations = false;
+        _catalogError = null;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps island situations failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted || _selectedIslandId != island.islandId) {
+        return;
+      }
+
+      setState(() {
+        _situations = const [];
+        _activeLesson = null;
+        _isLoadingIslandSituations = false;
+        _catalogError = 'Không tải được tình huống của đảo';
+      });
+    }
+  }
+
+  void _showIslands() {
+    setState(() {
+      _selectedIslandId = null;
+      _situations = const [];
+      _activeLesson = null;
+      _loadingSituationId = null;
+      _catalogError = null;
+      _isLoadingIslandSituations = false;
+    });
+  }
+
+  Future<void> _selectSituation(SituationSummary summary) async {
+    if (_loadingSituationId == summary.situationId) {
+      return;
+    }
+
+    setState(() {
+      _loadingSituationId = summary.situationId;
+      _catalogError = null;
+    });
+
+    try {
+      final detail = await _situationService.getSituationDetail(
+        summary.situationId,
+      );
+      final lesson = _lessonFromSituation(detail);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _activeLesson = lesson;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps situation detail failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _catalogError = 'Không tải được bài học';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingSituationId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _openLesson() async {
+    final lesson = _activeLesson;
+    if (lesson == null) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => LessonGameScreen(lesson: lesson)),
+    );
+
+    if (mounted) {
+      unawaited(_enterCatalogViewingMode());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedIsland = _selectedIslandId == null
+        ? null
+        : _islandById(_islands, _selectedIslandId!);
+    final selectedSituations = selectedIsland == null
+        ? const <SituationSummary>[]
+        : _situations;
+    final canStartLesson =
+        _activeLesson != null &&
+        !_isLoadingCatalog &&
+        !_isLoadingIslandSituations &&
+        _loadingSituationId == null;
+
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFE4F7FF), GameColors.cream],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _CatalogTopBar(onRefresh: () => unawaited(_loadCatalog())),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: _CatalogContentFrame(
+                    isLoading: _isLoadingCatalog && _islands.isEmpty,
+                    error: _catalogError,
+                    child: selectedIsland == null
+                        ? _IslandCatalogView(
+                            islands: _islands,
+                            onSelected: _selectIsland,
+                          )
+                        : _IslandSituationView(
+                            island: selectedIsland,
+                            situations: selectedSituations,
+                            isLoadingSituations: _isLoadingIslandSituations,
+                            activeLessonId: _activeLesson?.id,
+                            activeLesson: _activeLesson,
+                            loadingSituationId: _loadingSituationId,
+                            onBack: _showIslands,
+                            onSelected: (summary) {
+                              unawaited(_selectSituation(summary));
+                            },
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _PillButton(
+                  key: const ValueKey('start-lesson-button'),
+                  label: _activeLesson == null
+                      ? 'Chọn tình huống'
+                      : 'Bắt đầu bài học',
+                  icon: Icons.play_arrow_rounded,
+                  color: GameColors.banana,
+                  onPressed: canStartLesson
+                      ? () {
+                          unawaited(_openLesson());
+                        }
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CatalogTopBar extends StatelessWidget {
+  const _CatalogTopBar({required this.onRefresh});
+
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Image.asset(LessonAssets.mascot, width: 54),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _DockLabel('SmartSteps'),
+              Text(
+                'Bài học an toàn cho bé',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        _CircleIconButton(
+          label: 'Tải lại',
+          icon: Icons.refresh_rounded,
+          onPressed: onRefresh,
+        ),
+      ],
+    );
+  }
+}
+
+class _IslandCatalogEntry {
+  const _IslandCatalogEntry({
+    required this.islandId,
+    required this.name,
+    required this.orderIndex,
+    required this.lessonCount,
+    this.imageUrl,
+  });
+
+  factory _IslandCatalogEntry.fromSummary(IslandSummary summary) {
+    return _IslandCatalogEntry(
+      islandId: summary.islandId,
+      name: summary.name,
+      orderIndex: summary.orderIndex,
+      lessonCount: summary.situationCount,
+      imageUrl: summary.imageUrl,
+    );
+  }
+
+  final int islandId;
+  final String name;
+  final int orderIndex;
+  final int lessonCount;
+  final String? imageUrl;
+}
+
+_IslandCatalogEntry? _islandById(
+  List<_IslandCatalogEntry> islands,
+  int islandId,
+) {
+  for (final island in islands) {
+    if (island.islandId == islandId) {
+      return island;
+    }
+  }
+
+  return null;
+}
+
+class _CatalogContentFrame extends StatelessWidget {
+  const _CatalogContentFrame({
+    required this.isLoading,
+    required this.error,
+    required this.child,
+  });
+
+  final bool isLoading;
+  final String? error;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        image: const DecorationImage(
+          image: AssetImage(LessonAssets.livingRoom),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const _WarmSceneOverlay(),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: isLoading
+                  ? const _CatalogMessage(
+                      icon: Icons.sync_rounded,
+                      title: 'Đang tải dữ liệu',
+                      body: 'SmartSteps đang kết nối backend.',
+                    )
+                  : error != null
+                  ? _CatalogMessage(
+                      icon: Icons.cloud_off_rounded,
+                      title: 'Không tải được dữ liệu',
+                      body: error!,
+                    )
+                  : child,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandCatalogView extends StatelessWidget {
+  const _IslandCatalogView({required this.islands, required this.onSelected});
+
+  final List<_IslandCatalogEntry> islands;
+  final ValueChanged<_IslandCatalogEntry> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (islands.isEmpty) {
+      return const _CatalogMessage(
+        icon: Icons.map_outlined,
+        title: 'Chưa có đảo',
+        body: 'Backend chưa trả về tình huống đã xuất bản.',
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 560;
+        return ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            _CatalogHeader(
+              label: 'Đảo học tập',
+              title: 'Chọn đảo',
+              subtitle: '${islands.length} đảo',
+            ),
+            const SizedBox(height: 14),
+            if (isWide)
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.96,
+                ),
+                itemCount: islands.length,
+                itemBuilder: (context, index) {
+                  final island = islands[index];
+                  return _IslandTile(
+                    island: island,
+                    onTap: () => onSelected(island),
+                  );
+                },
+              )
+            else
+              ...islands.map(
+                (island) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _IslandTile(
+                    island: island,
+                    onTap: () => onSelected(island),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _IslandSituationView extends StatelessWidget {
+  const _IslandSituationView({
+    required this.island,
+    required this.situations,
+    required this.isLoadingSituations,
+    required this.activeLessonId,
+    required this.activeLesson,
+    required this.loadingSituationId,
+    required this.onBack,
+    required this.onSelected,
+  });
+
+  final _IslandCatalogEntry island;
+  final List<SituationSummary> situations;
+  final bool isLoadingSituations;
+  final String? activeLessonId;
+  final SafetyLesson? activeLesson;
+  final int? loadingSituationId;
+  final VoidCallback onBack;
+  final ValueChanged<SituationSummary> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        Row(
+          children: [
+            _CircleIconButton(
+              label: 'Quay lại danh sách đảo',
+              icon: Icons.arrow_back_rounded,
+              onPressed: onBack,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _CatalogHeader(
+                label: 'Tình huống',
+                title: island.name,
+                subtitle: '${island.lessonCount} bài',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (activeLesson != null) ...[
+          _SelectedLessonPreview(lesson: activeLesson!),
+          const SizedBox(height: 12),
+        ],
+        if (isLoadingSituations && situations.isEmpty)
+          const _CatalogMessage(
+            icon: Icons.sync_rounded,
+            title: 'Đang tải',
+            body: 'Đang mở các tình huống trong đảo.',
+          )
+        else if (situations.isEmpty)
+          const _CatalogMessage(
+            icon: Icons.auto_stories_outlined,
+            title: 'Chưa có tình huống',
+            body: 'Đảo này chưa có bài học đã xuất bản.',
+          )
+        else
+          ...situations.map((situation) {
+            final lessonId = 'situation-${situation.situationId}';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SituationTile(
+                situation: situation,
+                isSelected: activeLessonId == lessonId,
+                isLoading: loadingSituationId == situation.situationId,
+                onTap: () => onSelected(situation),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _CatalogHeader extends StatelessWidget {
+  const _CatalogHeader({
+    required this.label,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String label;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _DockLabel(label),
+        const SizedBox(height: 5),
+        Text(title, style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 5),
+        Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+      ],
+    );
+  }
+}
+
+class _IslandTile extends StatelessWidget {
+  const _IslandTile({required this.island, required this.onTap});
+
+  final _IslandCatalogEntry island;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _islandAccent(island.islandId);
+
+    return Material(
+      color: Colors.white.withValues(alpha: 0.88),
+      borderRadius: BorderRadius.circular(26),
+      child: InkWell(
+        key: ValueKey('island-${island.islandId}'),
+        borderRadius: BorderRadius.circular(26),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 206),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.82),
+              width: 3,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1F25324B),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 138,
+                child: _CatalogPicture(
+                  asset: _islandImageAsset(island.islandId),
+                  imageUrl: island.imageUrl,
+                  accent: accent,
+                  icon: Icons.terrain_rounded,
+                  padding: const EdgeInsets.all(18),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      island.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${island.lessonCount}',
+                      style: const TextStyle(
+                        color: GameColors.ink,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_right_rounded, color: accent, size: 30),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CatalogPicture extends StatelessWidget {
+  const _CatalogPicture({
+    required this.asset,
+    this.imageUrl,
+    required this.accent,
+    required this.icon,
+    required this.padding,
+  });
+
+  final String asset;
+  final String? imageUrl;
+  final Color accent;
+  final IconData icon;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Align(
+            alignment: Alignment.center,
+            child: Padding(
+              padding: padding,
+              child: _CatalogPictureImage(asset: asset, imageUrl: imageUrl),
+            ),
+          ),
+          Positioned(
+            right: 10,
+            top: 10,
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.84),
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: Icon(icon, color: accent, size: 21),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CatalogPictureImage extends StatelessWidget {
+  const _CatalogPictureImage({required this.asset, required this.imageUrl});
+
+  final String asset;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = imageUrl == null ? null : Uri.tryParse(imageUrl!);
+    if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
+      return Image.network(
+        imageUrl!,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => Image.asset(asset, fit: BoxFit.contain),
+      );
+    }
+
+    return Image.asset(asset, fit: BoxFit.contain);
+  }
+}
+
+class _SituationTile extends StatelessWidget {
+  const _SituationTile({
+    required this.situation,
+    required this.isSelected,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final SituationSummary situation;
+  final bool isSelected;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = isSelected
+        ? GameColors.safe
+        : _islandAccent(situation.islandId);
+
+    return Material(
+      color: isSelected
+          ? GameColors.mint.withValues(alpha: 0.74)
+          : Colors.white.withValues(alpha: 0.88),
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        key: ValueKey('situation-${situation.situationId}'),
+        borderRadius: BorderRadius.circular(24),
+        onTap: isLoading ? null : onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 126),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isSelected
+                  ? GameColors.safe.withValues(alpha: 0.62)
+                  : Colors.white.withValues(alpha: 0.82),
+              width: 3,
+            ),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 104,
+                height: 104,
+                child: _CatalogPicture(
+                  asset: _situationImageAsset(situation),
+                  accent: accent,
+                  icon: Icons.play_arrow_rounded,
+                  padding: const EdgeInsets.all(13),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      situation.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isLoading ? 'Đang tải' : 'Bài ${situation.orderIndex}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: GameColors.ink,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              isLoading
+                  ? const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    )
+                  : Icon(
+                      isSelected
+                          ? Icons.check_circle_rounded
+                          : Icons.chevron_right_rounded,
+                      color: isSelected ? GameColors.safe : GameColors.ink,
+                      size: 32,
+                    ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _islandImageAsset(int islandId) {
+  return LessonAssets.islandIcon;
+}
+
+String _situationImageAsset(SituationSummary situation) {
+  const assets = [
+    LessonAssets.ball,
+    LessonAssets.kid,
+    LessonAssets.childHappy,
+    LessonAssets.mother,
+    LessonAssets.childChoking,
+    LessonAssets.rewardStar,
+  ];
+
+  return assets[(situation.orderIndex - 1).abs() % assets.length];
+}
+
+class _SelectedLessonPreview extends StatelessWidget {
+  const _SelectedLessonPreview({required this.lesson});
+
+  final SafetyLesson lesson;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassPanel(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Image.asset(LessonAssets.mascot, width: 58),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _DockLabel('Đã chọn'),
+                const SizedBox(height: 5),
+                Text(
+                  lesson.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  lesson.mission,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CatalogMessage extends StatelessWidget {
+  const _CatalogMessage({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: _GlassPanel(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: GameColors.ink, size: 40),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Color _islandAccent(int islandId) {
+  const colors = [
+    GameColors.safe,
+    Color(0xFF35A7FF),
+    GameColors.coral,
+    Color(0xFF8F7CFF),
+  ];
+
+  return colors[(islandId - 1).abs() % colors.length];
+}
+
+const _fallbackIslandEntries = [
+  _IslandCatalogEntry(
+    islandId: 1,
+    name: 'Personal Safety',
+    orderIndex: 1,
+    lessonCount: 3,
+  ),
+  _IslandCatalogEntry(
+    islandId: 2,
+    name: 'Environmental Safety',
+    orderIndex: 2,
+    lessonCount: 3,
+  ),
+  _IslandCatalogEntry(
+    islandId: 3,
+    name: 'Social Safety',
+    orderIndex: 3,
+    lessonCount: 3,
+  ),
+];
+
+class SmartStepsLegacyLandingPage extends StatefulWidget {
+  const SmartStepsLegacyLandingPage({
+    super.key,
+    required this.situationService,
+  });
+
+  final SituationService situationService;
+
+  @override
+  State<SmartStepsLegacyLandingPage> createState() =>
+      _SmartStepsLandingPageState();
+}
+
+class _SmartStepsLandingPageState extends State<SmartStepsLegacyLandingPage> {
   List<SituationSummary> _situations = const [];
   SafetyLesson? _activeLesson;
   bool _isLoadingSituations = false;
@@ -142,14 +1128,13 @@ class _SmartStepsLandingPageState extends State<_SmartStepsLandingPage> {
         return;
       }
 
-      final firstLesson = await _loadLesson(situations.first);
       if (!mounted) {
         return;
       }
 
       setState(() {
         _situations = situations;
-        _activeLesson = firstLesson;
+        _activeLesson = null;
         _isLoadingSituations = false;
       });
     } catch (error, stackTrace) {
@@ -445,6 +1430,7 @@ class LessonAssets {
   const LessonAssets._();
 
   static const livingRoom = 'assets/images/living_room.jpg';
+  static const islandIcon = 'assets/images/Island_Icon.png';
   static const kid = 'assets/images/kid.png';
   static const childHappy = 'assets/images/child-happy.png';
   static const childChoking = 'assets/images/child-choking.png';
@@ -2957,6 +3943,7 @@ class _GlassPanel extends StatelessWidget {
 
 class _PillButton extends StatelessWidget {
   const _PillButton({
+    super.key,
     required this.label,
     required this.icon,
     required this.onPressed,
