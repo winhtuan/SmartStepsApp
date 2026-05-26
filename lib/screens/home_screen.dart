@@ -30,10 +30,14 @@ Future<void> _configureGlobalAudio() async {
 }
 
 class SmartStepsApp extends StatelessWidget {
-  SmartStepsApp({super.key, SituationService? situationService})
-    : situationService = situationService ?? SituationService();
+  SmartStepsApp({
+    super.key,
+    SituationService? situationService,
+    this.showPremiumOfferAfterLogin = true,
+  }) : situationService = situationService ?? SituationService();
 
   final SituationService situationService;
+  final bool showPremiumOfferAfterLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -72,8 +76,10 @@ class SmartStepsApp extends StatelessWidget {
         onLogin: (context) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  SmartStepsCatalogPage(situationService: situationService),
+              builder: (_) => SmartStepsCatalogPage(
+                situationService: situationService,
+                showPremiumOffer: showPremiumOfferAfterLogin,
+              ),
             ),
           );
         },
@@ -83,9 +89,14 @@ class SmartStepsApp extends StatelessWidget {
 }
 
 class SmartStepsCatalogPage extends StatefulWidget {
-  const SmartStepsCatalogPage({super.key, required this.situationService});
+  const SmartStepsCatalogPage({
+    super.key,
+    required this.situationService,
+    this.showPremiumOffer = false,
+  });
 
   final SituationService situationService;
+  final bool showPremiumOffer;
 
   @override
   State<SmartStepsCatalogPage> createState() => _SmartStepsCatalogPageState();
@@ -95,6 +106,7 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
   List<_IslandCatalogEntry> _islands = _fallbackIslandEntries;
   List<SituationSummary> _situations = const [];
   int? _selectedIslandId;
+  int _selectedTabIndex = 0;
   SafetyLesson? _activeLesson;
   bool _isLoadingCatalog = false;
   bool _isLoadingIslandSituations = false;
@@ -108,6 +120,21 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
     super.initState();
     unawaited(_enterCatalogViewingMode());
     unawaited(_loadCatalog());
+    if (widget.showPremiumOffer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_showPremiumOffer());
+        }
+      });
+    }
+  }
+
+  Future<void> _showPremiumOffer() {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _PremiumOfferDialog(),
+    );
   }
 
   Future<void> _enterCatalogViewingMode() async {
@@ -302,58 +329,435 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
         _loadingSituationId == null;
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFE4F7FF), GameColors.cream],
+      body: IndexedStack(
+        index: _selectedTabIndex,
+        children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFE4F7FF), GameColors.cream],
+              ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _CatalogTopBar(),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: _CatalogContentFrame(
+                        isLoading: _isLoadingCatalog && _islands.isEmpty,
+                        error: _catalogError,
+                        child: selectedIsland == null
+                            ? _IslandCatalogView(
+                                islands: _islands,
+                                onSelected: _selectIsland,
+                              )
+                            : _IslandSituationView(
+                                island: selectedIsland,
+                                situations: selectedSituations,
+                                isLoadingSituations: _isLoadingIslandSituations,
+                                activeLessonId: _activeLesson?.id,
+                                loadingSituationId: _loadingSituationId,
+                                onBack: _showIslands,
+                                onSelected: (summary) {
+                                  unawaited(_selectSituation(summary));
+                                },
+                              ),
+                      ),
+                    ),
+                    if (_activeLesson != null) ...[
+                      const SizedBox(height: 14),
+                      _PillButton(
+                        key: const ValueKey('start-lesson-button'),
+                        label: 'Bắt đầu bài học',
+                        icon: Icons.play_arrow_rounded,
+                        color: GameColors.banana,
+                        onPressed: canStartLesson
+                            ? () {
+                                unawaited(_openLesson());
+                              }
+                            : null,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const _SimpleTabPage(
+            icon: Icons.bar_chart_rounded,
+            title: 'Ti\u1ebfn \u0111\u1ed9',
+            body:
+                'Theo d\u00f5i b\u00e0i h\u1ecdc v\u00e0 sao th\u01b0\u1edfng c\u1ee7a b\u00e9.',
+          ),
+          const _SimpleTabPage(
+            icon: Icons.child_care_rounded,
+            title: 'B\u00e9',
+            body:
+                'H\u1ed3 s\u01a1 v\u00e0 thi\u1ebft l\u1eadp c\u00e1 nh\u00e2n cho b\u00e9.',
+          ),
+        ],
+      ),
+      bottomNavigationBar: _SmartStepsBottomNavigation(
+        currentIndex: _selectedTabIndex,
+        onSelected: (index) {
+          setState(() {
+            _selectedTabIndex = index;
+          });
+        },
+      ),
+    );
+  }
+}
+
+class _SimpleTabPage extends StatelessWidget {
+  const _SimpleTabPage({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFE4F7FF), GameColors.cream],
+        ),
+      ),
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: _GlassPanel(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: GameColors.ink, size: 42),
+                  const SizedBox(height: 12),
+                  Text(title, style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text(
+                    body,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      ),
+    );
+  }
+}
+
+class _PremiumOfferDialog extends StatefulWidget {
+  const _PremiumOfferDialog();
+
+  @override
+  State<_PremiumOfferDialog> createState() => _PremiumOfferDialogState();
+}
+
+class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
+  bool _canDismiss = false;
+  Timer? _dismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _dismissTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _canDismiss = true;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final dialogWidth = math.min(size.width - 32, 436.0);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: dialogWidth,
+          maxHeight: size.height - 44,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: Material(
+            color: Colors.white,
+            child: Stack(
               children: [
-                _CatalogTopBar(onRefresh: () => unawaited(_loadCatalog())),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: _CatalogContentFrame(
-                    isLoading: _isLoadingCatalog && _islands.isEmpty,
-                    error: _catalogError,
-                    child: selectedIsland == null
-                        ? _IslandCatalogView(
-                            islands: _islands,
-                            onSelected: _selectIsland,
-                          )
-                        : _IslandSituationView(
-                            island: selectedIsland,
-                            situations: selectedSituations,
-                            isLoadingSituations: _isLoadingIslandSituations,
-                            activeLessonId: _activeLesson?.id,
-                            activeLesson: _activeLesson,
-                            loadingSituationId: _loadingSituationId,
-                            onBack: _showIslands,
-                            onSelected: (summary) {
-                              unawaited(_selectSituation(summary));
-                            },
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: Container(height: 14, color: const Color(0xFFFBB901)),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 34, 24, 26),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'SMARTSTEPS\nPREMIUM',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF8BC34A),
+                          fontSize: 34,
+                          fontWeight: FontWeight.w900,
+                          height: 1.18,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFFF1B8),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.rocket_launch_rounded,
+                              color: Color(0xFFFF8F00),
+                              size: 19,
+                            ),
                           ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Mở khóa toàn bộ hành trình học tập',
+                              style: TextStyle(
+                                color: GameColors.ink,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      const _PremiumFeatureList(),
+                      const SizedBox(height: 30),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: FilledButton.icon(
+                          onPressed: () {},
+                          icon: const Icon(
+                            Icons.local_fire_department_rounded,
+                            color: Color(0xFFFF7A1A),
+                            size: 22,
+                          ),
+                          label: const Text('7 ngày dùng thử miễn phí'),
+                          style: FilledButton.styleFrom(
+                            elevation: 0,
+                            backgroundColor: const Color(0xFFFFE99C),
+                            foregroundColor: Colors.black,
+                            textStyle: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 14),
-                _PillButton(
-                  key: const ValueKey('start-lesson-button'),
-                  label: _activeLesson == null
-                      ? 'Chọn tình huống'
-                      : 'Bắt đầu bài học',
-                  icon: Icons.play_arrow_rounded,
-                  color: GameColors.banana,
-                  onPressed: canStartLesson
-                      ? () {
-                          unawaited(_openLesson());
-                        }
-                      : null,
+                Positioned(
+                  top: 18,
+                  right: 14,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _canDismiss
+                        ? Tooltip(
+                            message: 'Đóng',
+                            child: IconButton.filled(
+                              key: const ValueKey('premium-offer-close-button'),
+                              onPressed: () => Navigator.of(context).pop(),
+                              style: IconButton.styleFrom(
+                                backgroundColor: const Color(0xFFF5F5F5),
+                                foregroundColor: GameColors.ink,
+                              ),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumFeatureList extends StatelessWidget {
+  const _PremiumFeatureList();
+
+  static const _features = [
+    'AI gợi ý bài học mỗi ngày',
+    'Không giới hạn màn chơi',
+    'Huy hiệu và phần thưởng đặc biệt',
+    'Theo dõi tiến bộ của bé',
+    'Chế độ luyện tập nâng cao',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final feature in _features)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.check_rounded,
+                  color: Color(0xFF2EBB57),
+                  size: 25,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    feature,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      height: 1.18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SmartStepsBottomNavigation extends StatelessWidget {
+  const _SmartStepsBottomNavigation({
+    required this.currentIndex,
+    required this.onSelected,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFFFB800),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            children: [
+              _SmartStepsBottomNavigationItem(
+                icon: Icons.laptop_mac_rounded,
+                label: 'H\u1ecdc t\u1eadp',
+                isSelected: currentIndex == 0,
+                onTap: () => onSelected(0),
+              ),
+              _SmartStepsBottomNavigationItem(
+                icon: Icons.menu_book_rounded,
+                label: 'Ti\u1ebfn \u0111\u1ed9',
+                isSelected: currentIndex == 1,
+                onTap: () => onSelected(1),
+              ),
+              _SmartStepsBottomNavigationItem(
+                icon: Icons.home_outlined,
+                label: 'B\u00e9',
+                isSelected: currentIndex == 2,
+                onTap: () => onSelected(2),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SmartStepsBottomNavigationItem extends StatelessWidget {
+  const _SmartStepsBottomNavigationItem({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Semantics(
+        selected: isSelected,
+        button: true,
+        label: label,
+        child: InkResponse(
+          onTap: onTap,
+          containedInkWell: true,
+          highlightShape: BoxShape.rectangle,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 7, bottom: 5),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.black, size: 24),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
+                  ),
                 ),
               ],
             ),
@@ -365,37 +769,209 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
 }
 
 class _CatalogTopBar extends StatelessWidget {
-  const _CatalogTopBar({required this.onRefresh});
-
-  final VoidCallback onRefresh;
+  const _CatalogTopBar();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Image.asset(LessonAssets.mascot, width: 54),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _DockLabel('SmartSteps'),
-              Text(
-                'Bài học an toàn cho bé',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineSmall,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 380;
+
+        return Container(
+          constraints: BoxConstraints(minHeight: isCompact ? 100 : 112),
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 14 : 18,
+            vertical: isCompact ? 13 : 15,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFB800),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A25324B),
+                blurRadius: 18,
+                offset: Offset(0, 8),
               ),
             ],
           ),
+          child: Row(
+            children: [
+              _KidProfileAvatar(size: isCompact ? 58 : 68),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Bé An',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: GameColors.ink,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                      ),
+                    ),
+                    Text(
+                      'Bài học an toàn cho bé',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 0, height: 0),
+                    ),
+                    const SizedBox(height: 9),
+                    const Wrap(
+                      spacing: 8,
+                      runSpacing: 7,
+                      children: [
+                        _HeaderMetricChip(
+                          icon: Icons.local_fire_department_rounded,
+                          label: '7 ngày',
+                          color: Color(0xFFFFEFE0),
+                          iconColor: Color(0xFFE86D1F),
+                        ),
+                        _HeaderMetricChip(
+                          icon: Icons.star_rounded,
+                          label: '1.240 XP',
+                          color: Color(0xFFE9F8D5),
+                          iconColor: Color(0xFF6BAF2A),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _HeaderPlanChip(
+                label: 'Tải lại',
+                icon: Icons.workspace_premium_rounded,
+                onPressed: () {},
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _KidProfileAvatar extends StatelessWidget {
+  const _KidProfileAvatar({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+      ),
+      child: ClipOval(
+        child: ColoredBox(
+          color: const Color(0xFFBFE9FF),
+          child: Image.asset(
+            LessonAssets.kid,
+            fit: BoxFit.cover,
+            alignment: const Alignment(0, -0.35),
+          ),
         ),
-        const SizedBox(width: 10),
-        _CircleIconButton(
-          label: 'Tải lại',
-          icon: Icons.refresh_rounded,
-          onPressed: onRefresh,
+      ),
+    );
+  }
+}
+
+class _HeaderMetricChip extends StatelessWidget {
+  const _HeaderMetricChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.iconColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: iconColor, size: 18),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: GameColors.ink,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderPlanChip extends StatelessWidget {
+  const _HeaderPlanChip({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Gói hiện tại',
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Color(0xFFE3A600), size: 19),
+                const SizedBox(width: 5),
+                const Text(
+                  'Free',
+                  style: TextStyle(
+                    color: GameColors.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -559,7 +1135,6 @@ class _IslandSituationView extends StatelessWidget {
     required this.situations,
     required this.isLoadingSituations,
     required this.activeLessonId,
-    required this.activeLesson,
     required this.loadingSituationId,
     required this.onBack,
     required this.onSelected,
@@ -569,7 +1144,6 @@ class _IslandSituationView extends StatelessWidget {
   final List<SituationSummary> situations;
   final bool isLoadingSituations;
   final String? activeLessonId;
-  final SafetyLesson? activeLesson;
   final int? loadingSituationId;
   final VoidCallback onBack;
   final ValueChanged<SituationSummary> onSelected;
@@ -597,10 +1171,6 @@ class _IslandSituationView extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        if (activeLesson != null) ...[
-          _SelectedLessonPreview(lesson: activeLesson!),
-          const SizedBox(height: 12),
-        ],
         if (isLoadingSituations && situations.isEmpty)
           const _CatalogMessage(
             icon: Icons.sync_rounded,
@@ -614,18 +1184,12 @@ class _IslandSituationView extends StatelessWidget {
             body: 'Đảo này chưa có bài học đã xuất bản.',
           )
         else
-          ...situations.map((situation) {
-            final lessonId = 'situation-${situation.situationId}';
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _SituationTile(
-                situation: situation,
-                isSelected: activeLessonId == lessonId,
-                isLoading: loadingSituationId == situation.situationId,
-                onTap: () => onSelected(situation),
-              ),
-            );
-          }),
+          _LessonPathView(
+            situations: situations,
+            activeLessonId: activeLessonId,
+            loadingSituationId: loadingSituationId,
+            onSelected: onSelected,
+          ),
       ],
     );
   }
@@ -655,6 +1219,230 @@ class _CatalogHeader extends StatelessWidget {
         Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
       ],
     );
+  }
+}
+
+class _LessonPathView extends StatelessWidget {
+  const _LessonPathView({
+    required this.situations,
+    required this.activeLessonId,
+    required this.loadingSituationId,
+    required this.onSelected,
+  });
+
+  final List<SituationSummary> situations;
+  final String? activeLessonId;
+  final int? loadingSituationId;
+  final ValueChanged<SituationSummary> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 430),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.88),
+          width: 3,
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: CustomPaint(painter: _LessonPathPainter(situations.length)),
+          ),
+          Column(
+            children: [
+              for (var index = 0; index < situations.length; index++) ...[
+                _LessonPathNode(
+                  situation: situations[index],
+                  index: index,
+                  isSelected:
+                      activeLessonId ==
+                      'situation-${situations[index].situationId}',
+                  isLoading:
+                      loadingSituationId == situations[index].situationId,
+                  isUnlocked: index <= 2,
+                  onTap: () => onSelected(situations[index]),
+                ),
+                if (index != situations.length - 1) const SizedBox(height: 22),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LessonPathNode extends StatelessWidget {
+  const _LessonPathNode({
+    required this.situation,
+    required this.index,
+    required this.isSelected,
+    required this.isLoading,
+    required this.isUnlocked,
+    required this.onTap,
+  });
+
+  final SituationSummary situation;
+  final int index;
+  final bool isSelected;
+  final bool isLoading;
+  final bool isUnlocked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final alignment = switch (index % 4) {
+      0 => Alignment.center,
+      1 => const Alignment(0.62, 0),
+      2 => const Alignment(-0.58, 0),
+      _ => const Alignment(0.28, 0),
+    };
+    final color = isSelected
+        ? GameColors.safe
+        : isUnlocked
+        ? const Color(0xFFFFC928)
+        : const Color(0xFFD7DCE2);
+    final foreground = isUnlocked ? GameColors.ink : const Color(0xFF87909D);
+
+    return Align(
+      alignment: alignment,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: ValueKey('situation-${situation.situationId}'),
+              onTap: isLoading ? null : onTap,
+              customBorder: const CircleBorder(),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: isSelected ? 86 : 76,
+                height: isSelected ? 86 : 76,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    width: 7,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: isSelected ? 0.46 : 0.26),
+                      blurRadius: isSelected ? 20 : 12,
+                      offset: const Offset(0, 8),
+                    ),
+                    const BoxShadow(
+                      color: Color(0x2625324B),
+                      blurRadius: 8,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      )
+                    : Icon(
+                        isSelected
+                            ? Icons.star_rounded
+                            : isUnlocked
+                            ? Icons.check_rounded
+                            : Icons.lock_rounded,
+                        color: foreground,
+                        size: isSelected ? 40 : 34,
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? GameColors.safe
+                  : Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              isSelected ? 'START' : 'Bài ${situation.orderIndex}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isSelected ? Colors.white : GameColors.ink,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                height: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          SizedBox(
+            width: 160,
+            child: Text(
+              situation.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: GameColors.ink,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                height: 1.12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LessonPathPainter extends CustomPainter {
+  const _LessonPathPainter(this.nodeCount);
+
+  final int nodeCount;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (nodeCount < 2) {
+      return;
+    }
+
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.68)
+      ..strokeWidth = 10
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final path = Path();
+    final step = size.height / nodeCount;
+
+    path.moveTo(size.width * 0.5, step * 0.42);
+    for (var index = 1; index < nodeCount; index++) {
+      final y = step * (index + 0.3);
+      final x = switch (index % 4) {
+        1 => size.width * 0.78,
+        2 => size.width * 0.23,
+        3 => size.width * 0.62,
+        _ => size.width * 0.5,
+      };
+      path.lineTo(x, y);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LessonPathPainter oldDelegate) {
+    return oldDelegate.nodeCount != nodeCount;
   }
 }
 
@@ -821,6 +1609,7 @@ class _CatalogPictureImage extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _SituationTile extends StatelessWidget {
   const _SituationTile({
     required this.situation,
@@ -949,6 +1738,7 @@ String _situationImageAsset(SituationSummary situation) {
   return assets[(situation.orderIndex - 1).abs() % assets.length];
 }
 
+// ignore: unused_element
 class _SelectedLessonPreview extends StatelessWidget {
   const _SelectedLessonPreview({required this.lesson});
 

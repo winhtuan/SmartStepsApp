@@ -18,7 +18,12 @@ void main() {
   testWidgets('safe lesson flow uses backend API data', (tester) async {
     final situationService = _FakeSituationService();
 
-    await tester.pumpWidget(SmartStepsApp(situationService: situationService));
+    await tester.pumpWidget(
+      SmartStepsApp(
+        situationService: situationService,
+        showPremiumOfferAfterLogin: false,
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.byKey(const ValueKey('login-submit-button')));
     await tester.pumpAndSettle();
@@ -64,6 +69,34 @@ void main() {
 
     expect(find.text('Kid knows API safety! +1 Safety Star'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
+  });
+
+  testWidgets('premium offer close button appears after delay', (tester) async {
+    final situationService = _FakeSituationService();
+
+    await tester.pumpWidget(SmartStepsApp(situationService: situationService));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('login-submit-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SMARTSTEPS\nPREMIUM'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('premium-offer-close-button')),
+      findsNothing,
+    );
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('premium-offer-close-button')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('premium-offer-close-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('island-1')), findsOneWidget);
   });
 }
 
