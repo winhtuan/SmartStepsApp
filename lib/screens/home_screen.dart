@@ -389,11 +389,9 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
               ),
             ),
           ),
-          const _SimpleTabPage(
-            icon: Icons.bar_chart_rounded,
-            title: 'Ti\u1ebfn \u0111\u1ed9',
-            body:
-                'Theo d\u00f5i b\u00e0i h\u1ecdc v\u00e0 sao th\u01b0\u1edfng c\u1ee7a b\u00e9.',
+          _ParentReportPage(
+            situationService: _situationService,
+            isActive: _selectedTabIndex == 1,
           ),
           const _SimpleTabPage(
             icon: Icons.child_care_rounded,
@@ -463,6 +461,1174 @@ class _SimpleTabPage extends StatelessWidget {
     );
   }
 }
+
+class _ParentReportPage extends StatefulWidget {
+  const _ParentReportPage({
+    required this.situationService,
+    required this.isActive,
+  });
+
+  final SituationService situationService;
+  final bool isActive;
+
+  @override
+  State<_ParentReportPage> createState() => _ParentReportPageState();
+}
+
+class _ParentReportPageState extends State<_ParentReportPage> {
+  List<_ParentReportEntry> _entries = _fallbackParentReportEntries;
+  bool _isLoading = false;
+  bool _hasLoaded = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isActive) {
+      unawaited(_loadReport());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ParentReportPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.situationService != widget.situationService) {
+      setState(() {
+        _entries = _fallbackParentReportEntries;
+        _isLoading = false;
+        _hasLoaded = false;
+        _error = null;
+      });
+      if (widget.isActive) {
+        unawaited(_loadReport(force: true));
+      }
+      return;
+    }
+
+    if (!oldWidget.isActive && widget.isActive && !_hasLoaded && !_isLoading) {
+      unawaited(_loadReport());
+    }
+  }
+
+  Future<void> _loadReport({bool force = false}) async {
+    if (_isLoading || (!force && _hasLoaded)) {
+      return;
+    }
+
+    if (!widget.situationService.isEnabled) {
+      setState(() {
+        _entries = _fallbackParentReportEntries;
+        _isLoading = false;
+        _hasLoaded = true;
+        _error = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final entries = await _fetchReportEntries();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _entries = entries.isEmpty ? _fallbackParentReportEntries : entries;
+        _error = entries.isEmpty ? 'Chưa có dữ liệu báo cáo từ backend.' : null;
+        _isLoading = false;
+        _hasLoaded = true;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps parent report failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _entries = _fallbackParentReportEntries;
+        _error =
+            'Đang hiển thị dữ liệu mẫu vì chưa tải được báo cáo từ backend.';
+        _isLoading = false;
+        _hasLoaded = true;
+      });
+    }
+  }
+
+  Future<List<_ParentReportEntry>> _fetchReportEntries() async {
+    final islands = await widget.situationService.getIslands();
+    final summariesByIsland = await Future.wait(
+      islands.map(
+        (island) =>
+            widget.situationService.getIslandSituations(island.islandId),
+      ),
+    );
+    final summaries = summariesByIsland
+        .expand((items) => items)
+        .toList(growable: false);
+
+    if (summaries.isEmpty) {
+      return const [];
+    }
+
+    final sortedSummaries = summaries.toList(growable: false)
+      ..sort((a, b) {
+        final islandCompare = a.islandId.compareTo(b.islandId);
+        if (islandCompare != 0) {
+          return islandCompare;
+        }
+
+        return a.orderIndex.compareTo(b.orderIndex);
+      });
+    final details = await Future.wait(
+      sortedSummaries.map(
+        (summary) =>
+            widget.situationService.getSituationDetail(summary.situationId),
+      ),
+    );
+    final entries =
+        details
+            .map(_ParentReportEntry.fromDetail)
+            .where((entry) => entry.skillName.trim().isNotEmpty)
+            .toList(growable: false)
+          ..sort((a, b) {
+            final islandCompare = a.islandId.compareTo(b.islandId);
+            if (islandCompare != 0) {
+              return islandCompare;
+            }
+
+            return a.situationOrder.compareTo(b.situationOrder);
+          });
+
+    return entries;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _entries;
+    final displayEntries = entries.isEmpty
+        ? _fallbackParentReportEntries
+        : entries;
+    final focusEntry = _preferredFocusEntry(displayEntries);
+    final skillCount = _uniqueNonEmptyCount(
+      displayEntries.map((entry) => entry.skillName),
+    );
+    final isInitialLoading =
+        _isLoading && !_hasLoaded && widget.situationService.isEnabled;
+
+    return ColoredBox(
+      color: const Color(0xFFF8F8F8),
+      child: Column(
+        children: [
+          _ParentReportTopBar(
+            isLoading: _isLoading,
+            onRefresh: () {
+              unawaited(_loadReport(force: true));
+            },
+          ),
+          Expanded(
+            child: isInitialLoading
+                ? const _ParentReportLoadingView()
+                : RefreshIndicator(
+                    color: GameColors.safe,
+                    onRefresh: () => _loadReport(force: true),
+                    child: ListView(
+                      key: const ValueKey('parent-report-page'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+                      children: [
+                        _ParentProfileHero(skillCount: skillCount),
+                        const SizedBox(height: 24),
+                        const _StudyTimeSummary(),
+                        const SizedBox(height: 24),
+                        const _AchievementPanel(),
+                        const SizedBox(height: 24),
+                        if (_error != null) ...[
+                          _ReportNotice(message: _error!),
+                          const SizedBox(height: 16),
+                        ],
+                        _TopicProgressCard(
+                          focusEntry: focusEntry,
+                          entries: displayEntries,
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParentReportLoadingView extends StatelessWidget {
+  const _ParentReportLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: _GlassPanel(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 34,
+                height: 34,
+                child: CircularProgressIndicator(
+                  strokeWidth: 4,
+                  color: GameColors.safe,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Đang tải báo cáo',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'SmartSteps đang tổng hợp skill và câu hỏi cho phụ huynh.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParentReportTopBar extends StatelessWidget {
+  const _ParentReportTopBar({required this.isLoading, required this.onRefresh});
+
+  final bool isLoading;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFFFB800),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 82,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                const _SmartStepsBrandBadge(),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'SMARTSTEPS',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                isLoading
+                    ? const SizedBox(
+                        width: 54,
+                        height: 54,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    : _CircleIconButton(
+                        label: 'Tải lại tiến độ',
+                        icon: Icons.refresh_rounded,
+                        onPressed: onRefresh,
+                      ),
+                const SizedBox(width: 10),
+                _KidProfileAvatar(size: 58),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SmartStepsBrandBadge extends StatelessWidget {
+  const _SmartStepsBrandBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 70,
+      height: 70,
+      padding: const EdgeInsets.all(9),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: Image.asset(LessonAssets.mascot, fit: BoxFit.contain),
+    );
+  }
+}
+
+class _ParentProfileHero extends StatelessWidget {
+  const _ParentProfileHero({required this.skillCount});
+
+  final int skillCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 360;
+        final avatarSize = isCompact ? 108.0 : 132.0;
+
+        return Container(
+          constraints: const BoxConstraints(minHeight: 176),
+          padding: EdgeInsets.all(isCompact ? 18 : 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFB800),
+            borderRadius: BorderRadius.circular(44),
+          ),
+          child: Row(
+            children: [
+              _KidProfileAvatar(size: avatarSize),
+              SizedBox(width: isCompact ? 14 : 22),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      height: 34,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white, width: 2),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Upgrade',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: GameColors.ink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Premium version',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: GameColors.ink,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              height: 1.05,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 6),
+                        Icon(
+                          Icons.workspace_premium_rounded,
+                          color: GameColors.banana,
+                          size: 24,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: const Text(
+                        'PHƯƠNG ANH',
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: GameColors.ink,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'LEVEL ${math.max(1, math.min(9, skillCount ~/ 3 + 1))}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: GameColors.ink,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StudyTimeSummary extends StatelessWidget {
+  const _StudyTimeSummary();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(right: 80),
+          child: Text(
+            'Thời gian học',
+            style: TextStyle(
+              color: Color(0xFF555555),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              height: 1,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            height: 44,
+            constraints: const BoxConstraints(maxWidth: 280),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFC800),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Center(
+                    child: _StudyTimeCell(value: '7', unit: 'Ngày'),
+                  ),
+                ),
+                Flexible(
+                  child: Center(
+                    child: _StudyTimeCell(value: '21', unit: 'Giờ'),
+                  ),
+                ),
+                Flexible(
+                  child: Center(
+                    child: _StudyTimeCell(value: '02', unit: 'Phút'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StudyTimeCell extends StatelessWidget {
+  const _StudyTimeCell({required this.value, required this.unit});
+
+  final String value;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        style: const TextStyle(color: GameColors.ink, height: 1),
+        children: [
+          TextSpan(
+            text: '$value ',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          ),
+          TextSpan(
+            text: unit,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AchievementPanel extends StatelessWidget {
+  const _AchievementPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFD9D9D9), width: 2),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'THÀNH TỰU',
+            style: TextStyle(
+              color: Color(0xFF333333),
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+          SizedBox(height: 24),
+          Row(
+            children: [
+              _AchievementItem(
+                icon: Icons.psychology_rounded,
+                iconColor: Color(0xFFFF8FB2),
+                text: 'Tỷ lệ trả lời đúng đạt trên 80%.',
+              ),
+              _AchievementItem(
+                icon: Icons.local_fire_department_rounded,
+                iconColor: Color(0xFFFF8A1F),
+                text: 'Luyện tập trong 7 ngày liên tiếp',
+              ),
+              _AchievementItem(
+                icon: Icons.military_tech_rounded,
+                iconColor: Color(0xFFFFC447),
+                text: 'Hoàn thành 10 bài học',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AchievementItem extends StatelessWidget {
+  const _AchievementItem({
+    required this.icon,
+    required this.iconColor,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: iconColor, size: 48),
+          const SizedBox(height: 12),
+          Text(
+            text,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF444444),
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              height: 1.25,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopicProgressCard extends StatelessWidget {
+  const _TopicProgressCard({required this.focusEntry, required this.entries});
+
+  final _ParentReportEntry focusEntry;
+  final List<_ParentReportEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final questions = _reportQuestionsFor(entries, focusEntry);
+    final forgottenItems = _forgottenItemsFor(focusEntry);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFD9D9D9), width: 2),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Text(
+              'Chủ đề: ${focusEntry.skillName}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                height: 1.1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 34),
+          Align(
+            alignment: Alignment.centerRight,
+            child: _SpeechBubble(
+              text:
+                  'Hôm nay bé làm rất tốt phần ${_lowerFirst(focusEntry.skillName)}',
+            ),
+          ),
+          const SizedBox(height: 118),
+          const Text(
+            'Những phần mà con hay quên',
+            style: TextStyle(
+              color: Color(0xFFE53935),
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (final item in forgottenItems) ...[
+            _YellowReportRow(icon: Icons.pan_tool_alt_rounded, text: item),
+            const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            'Gợi ý hôm nay:\n${_questionContextFor(focusEntry)}',
+            style: const TextStyle(
+              color: Color(0xFF31C95B),
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              height: 1.08,
+            ),
+          ),
+          const SizedBox(height: 16),
+          for (final question in questions) ...[
+            _YellowReportRow(icon: Icons.pan_tool_alt_rounded, text: question),
+            const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 16),
+          const Text(
+            'Đề xuất',
+            style: TextStyle(
+              color: Color(0xFF31C95B),
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _RecommendationPanel(entry: focusEntry),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeechBubble extends StatelessWidget {
+  const _SpeechBubble({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 298,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF0AE),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              text,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 21,
+                fontWeight: FontWeight.w500,
+                height: 1.05,
+              ),
+            ),
+          ),
+          CustomPaint(
+            size: const Size(30, 25),
+            painter: _SpeechBubbleTailPainter(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeechBubbleTailPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFFFFF0AE);
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _YellowReportRow extends StatelessWidget {
+  const _YellowReportRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0AE),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFFFFB800), size: 19),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF333333),
+                fontSize: 19,
+                fontWeight: FontWeight.w500,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecommendationPanel extends StatelessWidget {
+  const _RecommendationPanel({required this.entry});
+
+  final _ParentReportEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0AE),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Nhận biết ${_lowerFirst(entry.skillName)}\n5 phút',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF333333),
+                fontSize: 19,
+                fontWeight: FontWeight.w500,
+                height: 1.12,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_rounded,
+            color: Color(0xFF80D83D),
+            size: 44,
+          ),
+          const SizedBox(width: 6),
+          FilledButton(
+            onPressed: () {},
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(128, 42),
+              backgroundColor: const Color(0xFF8AE234),
+              foregroundColor: GameColors.ink,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              textStyle: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Bắt đầu ngay', maxLines: 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportNotice extends StatelessWidget {
+  const _ReportNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: GameColors.banana.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.76),
+          width: 3,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_rounded, color: GameColors.ink, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParentReportEntry {
+  const _ParentReportEntry({
+    required this.situationId,
+    required this.islandId,
+    required this.situationOrder,
+    required this.islandName,
+    required this.lessonTitle,
+    required this.skillName,
+    required this.skillDescription,
+    required this.realLifeQuestion,
+    required this.practicePrompt,
+    required this.watchOut,
+  });
+
+  factory _ParentReportEntry.fromDetail(SituationDetail detail) {
+    final skill = detail.skills.isNotEmpty ? detail.skills.first : null;
+    final parentReview = detail.parentReview;
+
+    return _ParentReportEntry(
+      situationId: detail.situationId,
+      islandId: detail.islandId,
+      situationOrder: detail.orderIndex,
+      islandName: detail.islandName,
+      lessonTitle: detail.title,
+      skillName: _firstNonEmpty([skill?.name, detail.title]),
+      skillDescription: _firstNonEmpty([
+        skill?.description,
+        detail.intro,
+        detail.title,
+      ]),
+      realLifeQuestion: _firstNonEmpty([
+        detail.flashcard?.question,
+        parentReview?.questionText,
+        detail.intro,
+      ]),
+      practicePrompt: _firstNonEmpty([
+        parentReview?.questionText,
+        detail.flashcard?.correctFeedback,
+        detail.intro,
+      ]),
+      watchOut: _firstNonEmpty([
+        parentReview?.suggestedActivity,
+        detail.flashcard?.wrongFeedback,
+        detail.intro,
+      ]),
+    );
+  }
+
+  final int situationId;
+  final int islandId;
+  final int situationOrder;
+  final String islandName;
+  final String lessonTitle;
+  final String skillName;
+  final String skillDescription;
+  final String realLifeQuestion;
+  final String practicePrompt;
+  final String watchOut;
+}
+
+String _firstNonEmpty(Iterable<String?> values) {
+  for (final value in values) {
+    final text = value?.trim();
+    if (text != null && text.isNotEmpty) {
+      return text;
+    }
+  }
+
+  return '';
+}
+
+int _uniqueNonEmptyCount(Iterable<String> values) {
+  return values
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toSet()
+      .length;
+}
+
+_ParentReportEntry _preferredFocusEntry(List<_ParentReportEntry> entries) {
+  for (final entry in entries) {
+    if (entry.skillName.toLowerCase().contains('giao thông')) {
+      return entry;
+    }
+  }
+
+  return entries.first;
+}
+
+List<String> _reportQuestionsFor(
+  List<_ParentReportEntry> entries,
+  _ParentReportEntry focusEntry,
+) {
+  final questions = <String>[];
+  void add(String value) {
+    final text = value.trim();
+    if (text.isNotEmpty && !questions.contains(text)) {
+      questions.add(text);
+    }
+  }
+
+  add(focusEntry.realLifeQuestion);
+  add(focusEntry.practicePrompt);
+  for (final entry in entries) {
+    if (entry.islandId == focusEntry.islandId) {
+      add(entry.realLifeQuestion);
+    }
+  }
+  for (final entry in entries) {
+    add(entry.realLifeQuestion);
+  }
+
+  return questions.take(3).toList(growable: false);
+}
+
+List<String> _forgottenItemsFor(_ParentReportEntry entry) {
+  return [
+    _compactReportText(entry.watchOut),
+    _compactReportText('Ôn lại ${entry.lessonTitle}'),
+  ];
+}
+
+String _questionContextFor(_ParentReportEntry entry) {
+  final skill = entry.skillName.toLowerCase();
+  if (skill.contains('giao thông')) {
+    return 'Khi ra đường, hãy hỏi con:';
+  }
+  if (skill.contains('lạc')) {
+    return 'Khi đến nơi đông người, hãy hỏi con:';
+  }
+  if (skill.contains('điện') || skill.contains('nước nóng')) {
+    return 'Khi ở nhà, hãy hỏi con:';
+  }
+
+  return 'Khi luyện skill này, hãy hỏi con:';
+}
+
+String _lowerFirst(String value) {
+  final text = value.trim();
+  if (text.isEmpty) {
+    return text;
+  }
+
+  return '${text[0].toLowerCase()}${text.substring(1)}';
+}
+
+String _compactReportText(String value) {
+  final text = value.trim();
+  if (text.length <= 78) {
+    return text;
+  }
+
+  return '${text.substring(0, 75)}...';
+}
+
+const _fallbackParentReportEntries = [
+  _ParentReportEntry(
+    situationId: 1,
+    islandId: 1,
+    situationOrder: 1,
+    islandName: 'Personal Safety',
+    lessonTitle: 'Bài 1: Vật tròn lấp lánh',
+    skillName: 'An toàn dị vật',
+    skillDescription: 'Nhận biết đồ vật nhỏ có nguy cơ gây hóc hoặc nuốt phải.',
+    realLifeQuestion:
+        'Nếu con thấy một vật nhỏ lấp lánh trên sàn, con sẽ làm gì?',
+    practicePrompt:
+        'Cùng bé kiểm tra đồ chơi xem có chi tiết nhỏ bị rơi ra không.',
+    watchOut: 'Giữ pin nút, nam châm và dị vật nhỏ xa tầm tay của bé.',
+  ),
+  _ParentReportEntry(
+    situationId: 2,
+    islandId: 1,
+    situationOrder: 2,
+    islandName: 'Personal Safety',
+    lessonTitle: 'Bài 2: Bàn tay kỳ diệu và các cái lỗ',
+    skillName: 'An toàn điện',
+    skillDescription:
+        'Nhận biết ổ điện nguy hiểm và không chọc vật lạ vào ổ cắm.',
+    realLifeQuestion:
+        'Ổ cắm điện có phải đồ chơi không? Con nên đứng gần hay tránh xa?',
+    practicePrompt:
+        'Đi một vòng quanh nhà và chỉ cho bé các vị trí ổ điện cần tránh.',
+    watchOut: 'Ưu tiên dùng nắp đậy ổ điện ở các vị trí thấp trong nhà.',
+  ),
+  _ParentReportEntry(
+    situationId: 3,
+    islandId: 1,
+    situationOrder: 3,
+    islandName: 'Personal Safety',
+    lessonTitle: 'Bài 3: Cơn nghiện ấn nút',
+    skillName: 'An toàn nước nóng',
+    skillDescription:
+        'Biết tránh xa bình nước nóng và không tự ý nghịch nút bấm.',
+    realLifeQuestion: 'Khi thấy bình thủy đang nóng, con sẽ làm gì để an toàn?',
+    practicePrompt:
+        'Dạy bé nói “nóng” và rụt tay lại khi gặp đồ vật có nhiệt độ cao.',
+    watchOut: 'Luôn bật khóa an toàn trẻ em trên các thiết bị nước nóng.',
+  ),
+  _ParentReportEntry(
+    situationId: 4,
+    islandId: 2,
+    situationOrder: 1,
+    islandName: 'Environmental Safety',
+    lessonTitle: 'Bài 1: Qua đường an toàn',
+    skillName: 'An toàn giao thông',
+    skillDescription: 'Biết chờ đèn xanh, nắm tay người lớn và nhìn hai bên.',
+    realLifeQuestion:
+        'Trước khi qua đường, con cần chờ đèn màu gì và làm gì với ba mẹ?',
+    practicePrompt:
+        'Khi ra đường, hỏi bé đèn màu nào được đi và màu nào phải dừng.',
+    watchOut:
+        'Bé có thể quên nhìn hai bên nếu bị thu hút bởi món đồ phía đối diện.',
+  ),
+  _ParentReportEntry(
+    situationId: 5,
+    islandId: 2,
+    situationOrder: 2,
+    islandName: 'Environmental Safety',
+    lessonTitle: 'Bài 2: Bị lạc trong siêu thị',
+    skillName: 'Xử lý khi bị lạc',
+    skillDescription:
+        'Biết đứng yên và tìm nhân viên giúp đỡ khi không thấy ba mẹ.',
+    realLifeQuestion:
+        'Nếu bị lạc trong siêu thị, con nên chạy đi tìm hay đứng yên nhờ giúp?',
+    practicePrompt:
+        'Đóng vai tình huống bị lạc và luyện câu “con bị lạc, cô/chú giúp con”.',
+    watchOut: 'Nhắc bé không tự chạy lung tung vì có thể lạc xa hơn.',
+  ),
+  _ParentReportEntry(
+    situationId: 6,
+    islandId: 2,
+    situationOrder: 3,
+    islandName: 'Environmental Safety',
+    lessonTitle: 'Bài 3: Hồ nước / hồ bơi',
+    skillName: 'An toàn hồ nước',
+    skillDescription:
+        'Biết tìm người lớn khi gặp nguy hiểm gần hồ nước hoặc hồ bơi.',
+    realLifeQuestion:
+        'Nếu đồ chơi rơi xuống hồ nước, con tự lấy hay gọi người lớn?',
+    practicePrompt:
+        'Nhắc bé đứng xa mép nước và chỉ tay gọi người lớn giúp đỡ.',
+    watchOut: 'Bé dễ tiến lại gần mép nước nếu đang tiếc đồ chơi.',
+  ),
+  _ParentReportEntry(
+    situationId: 7,
+    islandId: 3,
+    situationOrder: 1,
+    islandName: 'Social Safety',
+    lessonTitle: 'Bài 1: Người lạ biết tên bé',
+    skillName: 'Cảnh giác người lạ',
+    skillDescription:
+        'Cảnh giác với người lạ giả danh người quen hoặc biết tên bé.',
+    realLifeQuestion:
+        'Nếu người lạ nói mẹ nhờ đón con, con sẽ nói gì và đi đâu?',
+    practicePrompt: 'Cùng bé tạo mật khẩu bí mật chỉ gia đình biết.',
+    watchOut: 'Bé có thể mất cảnh giác khi người lạ tỏ ra thân thiện.',
+  ),
+  _ParentReportEntry(
+    situationId: 8,
+    islandId: 3,
+    situationOrder: 2,
+    islandName: 'Social Safety',
+    lessonTitle: 'Bài 2: Lời thách đố của bạn bè',
+    skillName: 'Từ chối áp lực bạn bè',
+    skillDescription: 'Biết nói không với việc nguy hiểm dù bị bạn bè rủ rê.',
+    realLifeQuestion:
+        'Nếu bạn rủ con làm việc nguy hiểm, con có thể từ chối như thế nào?',
+    practicePrompt:
+        'Đóng vai bạn rủ làm việc sai và để bé luyện câu từ chối rõ ràng.',
+    watchOut: 'Bé có thể làm liều vì sợ bị chê cười hoặc bị bỏ rơi.',
+  ),
+  _ParentReportEntry(
+    situationId: 9,
+    islandId: 3,
+    situationOrder: 3,
+    islandName: 'Social Safety',
+    lessonTitle: 'Bài 3: Chiếc ví bị đánh rơi',
+    skillName: 'Trung thực',
+    skillDescription:
+        'Biết trả lại đồ không phải của mình dù không có ai nhìn thấy.',
+    realLifeQuestion:
+        'Nếu nhặt được đồ của người khác, con nên giữ lại hay đem trả?',
+    practicePrompt:
+        'Tạo tình huống giả định nhặt được đồ và hỏi bé sẽ xử lý ra sao.',
+    watchOut: 'Bé dễ bị cám dỗ bởi suy nghĩ “không ai nhìn thấy”.',
+  ),
+];
 
 class _PremiumOfferDialog extends StatefulWidget {
   const _PremiumOfferDialog();

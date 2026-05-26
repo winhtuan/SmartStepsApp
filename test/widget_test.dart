@@ -71,6 +71,46 @@ void main() {
     await tester.pump(const Duration(seconds: 10));
   });
 
+  testWidgets('parent report shows skills and practice questions', (
+    tester,
+  ) async {
+    final situationService = _FakeSituationService();
+
+    await tester.pumpWidget(
+      SmartStepsApp(
+        situationService: situationService,
+        showPremiumOfferAfterLogin: false,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('login-submit-button')));
+    await tester.pumpAndSettle();
+
+    expect(situationService.detailCalls, 0);
+
+    await tester.tap(find.text('Tiến độ'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('parent-report-page')), findsOneWidget);
+    expect(situationService.detailCalls, 3);
+    await tester.drag(
+      find.byKey(const ValueKey('parent-report-page')),
+      const Offset(0, -900),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('API Skill'), findsWidgets);
+    expect(find.text('What should the kid do?'), findsWidgets);
+    expect(
+      find.textContaining('Practice from API', findRichText: true),
+      findsWidgets,
+    );
+    expect(
+      find.textContaining('Risk from API', findRichText: true),
+      findsWidgets,
+    );
+  });
+
   testWidgets('premium offer close button appears after delay', (tester) async {
     final situationService = _FakeSituationService();
 
