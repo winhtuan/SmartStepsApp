@@ -10,7 +10,11 @@ import 'package:smartsteps/services/situation_service.dart';
 import 'package:video_player/video_player.dart';
 
 import '../services/supabase_config.dart';
+import '../theme/duo_theme.dart';
+import '../widgets/duo_components.dart';
+import 'learn_screen.dart';
 import 'login_screen.dart';
+import 'profile_screen.dart';
 
 Future<void> runSmartStepsApp() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,34 +48,7 @@ class SmartStepsApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'SmartSteps',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: GameColors.cream,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: GameColors.safe,
-          brightness: Brightness.light,
-        ),
-        textTheme: const TextTheme(
-          headlineSmall: TextStyle(
-            color: GameColors.ink,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-            height: 1.05,
-          ),
-          titleLarge: TextStyle(
-            color: GameColors.ink,
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-            height: 1.08,
-          ),
-          bodyMedium: TextStyle(
-            color: GameColors.muted,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            height: 1.35,
-          ),
-        ),
-      ),
+      theme: DuoTheme.light,
       home: LoginScreen(
         onLogin: (context) {
           Navigator.of(context).pushReplacement(
@@ -333,13 +310,7 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
         index: _selectedTabIndex,
         children: [
           DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFE4F7FF), GameColors.cream],
-              ),
-            ),
+            decoration: const BoxDecoration(color: DuoColors.background),
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
@@ -353,11 +324,11 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
                         isLoading: _isLoadingCatalog && _islands.isEmpty,
                         error: _catalogError,
                         child: selectedIsland == null
-                            ? _IslandCatalogView(
+                            ? _IslandCatalogViewNew(
                                 islands: _islands,
                                 onSelected: _selectIsland,
                               )
-                            : _IslandSituationView(
+                            : _IslandSituationViewNew(
                                 island: selectedIsland,
                                 situations: selectedSituations,
                                 isLoadingSituations: _isLoadingIslandSituations,
@@ -389,16 +360,12 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
               ),
             ),
           ),
-          _ParentReportPage(
+          ParentReportPage(
             situationService: _situationService,
             isActive: _selectedTabIndex == 1,
           ),
-          const _SimpleTabPage(
-            icon: Icons.child_care_rounded,
-            title: 'B\u00e9',
-            body:
-                'H\u1ed3 s\u01a1 v\u00e0 thi\u1ebft l\u1eadp c\u00e1 nh\u00e2n cho b\u00e9.',
-          ),
+          const _PracticeTabPage(),
+          const ProfileScreen(),
         ],
       ),
       bottomNavigationBar: _SmartStepsBottomNavigation(
@@ -413,1222 +380,68 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
   }
 }
 
-class _SimpleTabPage extends StatelessWidget {
-  const _SimpleTabPage({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
+class _PracticeTabPage extends StatelessWidget {
+  const _PracticeTabPage();
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFE4F7FF), GameColors.cream],
-        ),
-      ),
+      decoration: const BoxDecoration(color: DuoColors.background),
       child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: _GlassPanel(
-              padding: const EdgeInsets.all(22),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          children: [
+            DuoCard(
+              color: DuoColors.primaryYellow,
+              borderColor: DuoColors.darkYellow,
+              child: Row(
                 children: [
-                  Icon(icon, color: GameColors.ink, size: 42),
-                  const SizedBox(height: 12),
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text(
-                    body,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  Image.asset(LessonAssets.mascotSinging, width: 82),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Luyện tập',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Ôn lại các kỹ năng an toàn đã học.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ParentReportPage extends StatefulWidget {
-  const _ParentReportPage({
-    required this.situationService,
-    required this.isActive,
-  });
-
-  final SituationService situationService;
-  final bool isActive;
-
-  @override
-  State<_ParentReportPage> createState() => _ParentReportPageState();
-}
-
-class _ParentReportPageState extends State<_ParentReportPage> {
-  List<_ParentReportEntry> _entries = _fallbackParentReportEntries;
-  bool _isLoading = false;
-  bool _hasLoaded = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.isActive) {
-      unawaited(_loadReport());
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _ParentReportPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.situationService != widget.situationService) {
-      setState(() {
-        _entries = _fallbackParentReportEntries;
-        _isLoading = false;
-        _hasLoaded = false;
-        _error = null;
-      });
-      if (widget.isActive) {
-        unawaited(_loadReport(force: true));
-      }
-      return;
-    }
-
-    if (!oldWidget.isActive && widget.isActive && !_hasLoaded && !_isLoading) {
-      unawaited(_loadReport());
-    }
-  }
-
-  Future<void> _loadReport({bool force = false}) async {
-    if (_isLoading || (!force && _hasLoaded)) {
-      return;
-    }
-
-    if (!widget.situationService.isEnabled) {
-      setState(() {
-        _entries = _fallbackParentReportEntries;
-        _isLoading = false;
-        _hasLoaded = true;
-        _error = null;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final entries = await _fetchReportEntries();
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _entries = entries.isEmpty ? _fallbackParentReportEntries : entries;
-        _error = entries.isEmpty ? 'Chưa có dữ liệu báo cáo từ backend.' : null;
-        _isLoading = false;
-        _hasLoaded = true;
-      });
-    } catch (error, stackTrace) {
-      debugPrint('SmartSteps parent report failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _entries = _fallbackParentReportEntries;
-        _error =
-            'Đang hiển thị dữ liệu mẫu vì chưa tải được báo cáo từ backend.';
-        _isLoading = false;
-        _hasLoaded = true;
-      });
-    }
-  }
-
-  Future<List<_ParentReportEntry>> _fetchReportEntries() async {
-    final islands = await widget.situationService.getIslands();
-    final summariesByIsland = await Future.wait(
-      islands.map(
-        (island) =>
-            widget.situationService.getIslandSituations(island.islandId),
-      ),
-    );
-    final summaries = summariesByIsland
-        .expand((items) => items)
-        .toList(growable: false);
-
-    if (summaries.isEmpty) {
-      return const [];
-    }
-
-    final sortedSummaries = summaries.toList(growable: false)
-      ..sort((a, b) {
-        final islandCompare = a.islandId.compareTo(b.islandId);
-        if (islandCompare != 0) {
-          return islandCompare;
-        }
-
-        return a.orderIndex.compareTo(b.orderIndex);
-      });
-    final details = await Future.wait(
-      sortedSummaries.map(
-        (summary) =>
-            widget.situationService.getSituationDetail(summary.situationId),
-      ),
-    );
-    final entries =
-        details
-            .map(_ParentReportEntry.fromDetail)
-            .where((entry) => entry.skillName.trim().isNotEmpty)
-            .toList(growable: false)
-          ..sort((a, b) {
-            final islandCompare = a.islandId.compareTo(b.islandId);
-            if (islandCompare != 0) {
-              return islandCompare;
-            }
-
-            return a.situationOrder.compareTo(b.situationOrder);
-          });
-
-    return entries;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final entries = _entries;
-    final displayEntries = entries.isEmpty
-        ? _fallbackParentReportEntries
-        : entries;
-    final focusEntry = _preferredFocusEntry(displayEntries);
-    final skillCount = _uniqueNonEmptyCount(
-      displayEntries.map((entry) => entry.skillName),
-    );
-    final isInitialLoading =
-        _isLoading && !_hasLoaded && widget.situationService.isEnabled;
-
-    return ColoredBox(
-      color: const Color(0xFFF8F8F8),
-      child: Column(
-        children: [
-          _ParentReportTopBar(
-            isLoading: _isLoading,
-            onRefresh: () {
-              unawaited(_loadReport(force: true));
-            },
-          ),
-          Expanded(
-            child: isInitialLoading
-                ? const _ParentReportLoadingView()
-                : RefreshIndicator(
-                    color: GameColors.safe,
-                    onRefresh: () => _loadReport(force: true),
-                    child: ListView(
-                      key: const ValueKey('parent-report-page'),
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
-                      children: [
-                        _ParentProfileHero(skillCount: skillCount),
-                        const SizedBox(height: 24),
-                        const _StudyTimeSummary(),
-                        const SizedBox(height: 24),
-                        const _AchievementPanel(),
-                        const SizedBox(height: 24),
-                        if (_error != null) ...[
-                          _ReportNotice(message: _error!),
-                          const SizedBox(height: 16),
-                        ],
-                        _TopicProgressCard(
-                          focusEntry: focusEntry,
-                          entries: displayEntries,
-                        ),
-                      ],
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ParentReportLoadingView extends StatelessWidget {
-  const _ParentReportLoadingView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: _GlassPanel(
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                width: 34,
-                height: 34,
-                child: CircularProgressIndicator(
-                  strokeWidth: 4,
-                  color: GameColors.safe,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Đang tải báo cáo',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'SmartSteps đang tổng hợp skill và câu hỏi cho phụ huynh.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ParentReportTopBar extends StatelessWidget {
-  const _ParentReportTopBar({required this.isLoading, required this.onRefresh});
-
-  final bool isLoading;
-  final VoidCallback onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFFFB800),
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: 82,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: [
-                const _SmartStepsBrandBadge(),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'SMARTSTEPS',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
-                  ),
-                ),
-                isLoading
-                    ? const SizedBox(
-                        width: 54,
-                        height: 54,
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            color: Colors.white,
-                          ),
-                        ),
-                      )
-                    : _CircleIconButton(
-                        label: 'Tải lại tiến độ',
-                        icon: Icons.refresh_rounded,
-                        onPressed: onRefresh,
-                      ),
-                const SizedBox(width: 10),
-                _KidProfileAvatar(size: 58),
-              ],
+            const SizedBox(height: 16),
+            const DuoAchievementCard(
+              icon: Icons.replay_rounded,
+              title: 'Ôn bài nhanh',
+              subtitle: '5 câu hỏi ngắn để ghi nhớ lâu hơn',
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SmartStepsBrandBadge extends StatelessWidget {
-  const _SmartStepsBrandBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 70,
-      height: 70,
-      padding: const EdgeInsets.all(9),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-      ),
-      child: Image.asset(LessonAssets.mascot, fit: BoxFit.contain),
-    );
-  }
-}
-
-class _ParentProfileHero extends StatelessWidget {
-  const _ParentProfileHero({required this.skillCount});
-
-  final int skillCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 360;
-        final avatarSize = isCompact ? 108.0 : 132.0;
-
-        return Container(
-          constraints: const BoxConstraints(minHeight: 176),
-          padding: EdgeInsets.all(isCompact ? 18 : 24),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFB800),
-            borderRadius: BorderRadius.circular(44),
-          ),
-          child: Row(
-            children: [
-              _KidProfileAvatar(size: avatarSize),
-              SizedBox(width: isCompact ? 14 : 22),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      height: 34,
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white, width: 2),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'Upgrade',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: GameColors.ink,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Premium version',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: GameColors.ink,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              height: 1.05,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 6),
-                        Icon(
-                          Icons.workspace_premium_rounded,
-                          color: GameColors.banana,
-                          size: 24,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: const Text(
-                        'PHƯƠNG ANH',
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: GameColors.ink,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'LEVEL ${math.max(1, math.min(9, skillCount ~/ 3 + 1))}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: GameColors.ink,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        height: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _StudyTimeSummary extends StatelessWidget {
-  const _StudyTimeSummary();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(right: 80),
-          child: Text(
-            'Thời gian học',
-            style: TextStyle(
-              color: Color(0xFF555555),
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              height: 1,
+            const SizedBox(height: 12),
+            const DuoAchievementCard(
+              icon: Icons.shield_rounded,
+              title: 'Tình huống an toàn',
+              subtitle: 'Chọn cách xử lý đúng trong đời sống',
             ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Container(
-            height: 44,
-            constraints: const BoxConstraints(maxWidth: 280),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFC800),
-              borderRadius: BorderRadius.circular(999),
+            const SizedBox(height: 12),
+            const DuoAchievementCard(
+              icon: Icons.lock_rounded,
+              title: 'Thử thách nâng cao',
+              subtitle: 'Mở khóa khi hoàn thành thêm bài học',
+              isUnlocked: false,
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Center(
-                    child: _StudyTimeCell(value: '7', unit: 'Ngày'),
-                  ),
-                ),
-                Flexible(
-                  child: Center(
-                    child: _StudyTimeCell(value: '21', unit: 'Giờ'),
-                  ),
-                ),
-                Flexible(
-                  child: Center(
-                    child: _StudyTimeCell(value: '02', unit: 'Phút'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StudyTimeCell extends StatelessWidget {
-  const _StudyTimeCell({required this.value, required this.unit});
-
-  final String value;
-  final String unit;
-
-  @override
-  Widget build(BuildContext context) {
-    return RichText(
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      text: TextSpan(
-        style: const TextStyle(color: GameColors.ink, height: 1),
-        children: [
-          TextSpan(
-            text: '$value ',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-          ),
-          TextSpan(
-            text: unit,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AchievementPanel extends StatelessWidget {
-  const _AchievementPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFD9D9D9), width: 2),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'THÀNH TỰU',
-            style: TextStyle(
-              color: Color(0xFF333333),
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-          SizedBox(height: 24),
-          Row(
-            children: [
-              _AchievementItem(
-                icon: Icons.psychology_rounded,
-                iconColor: Color(0xFFFF8FB2),
-                text: 'Tỷ lệ trả lời đúng đạt trên 80%.',
-              ),
-              _AchievementItem(
-                icon: Icons.local_fire_department_rounded,
-                iconColor: Color(0xFFFF8A1F),
-                text: 'Luyện tập trong 7 ngày liên tiếp',
-              ),
-              _AchievementItem(
-                icon: Icons.military_tech_rounded,
-                iconColor: Color(0xFFFFC447),
-                text: 'Hoàn thành 10 bài học',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AchievementItem extends StatelessWidget {
-  const _AchievementItem({
-    required this.icon,
-    required this.iconColor,
-    required this.text,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: iconColor, size: 48),
-          const SizedBox(height: 12),
-          Text(
-            text,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF444444),
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              height: 1.25,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TopicProgressCard extends StatelessWidget {
-  const _TopicProgressCard({required this.focusEntry, required this.entries});
-
-  final _ParentReportEntry focusEntry;
-  final List<_ParentReportEntry> entries;
-
-  @override
-  Widget build(BuildContext context) {
-    final questions = _reportQuestionsFor(entries, focusEntry);
-    final forgottenItems = _forgottenItemsFor(focusEntry);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFD9D9D9), width: 2),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              'Chủ đề: ${focusEntry.skillName}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
-              ),
-            ),
-          ),
-          const SizedBox(height: 34),
-          Align(
-            alignment: Alignment.centerRight,
-            child: _SpeechBubble(
-              text:
-                  'Hôm nay bé làm rất tốt phần ${_lowerFirst(focusEntry.skillName)}',
-            ),
-          ),
-          const SizedBox(height: 118),
-          const Text(
-            'Những phần mà con hay quên',
-            style: TextStyle(
-              color: Color(0xFFE53935),
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 14),
-          for (final item in forgottenItems) ...[
-            _YellowReportRow(icon: Icons.pan_tool_alt_rounded, text: item),
-            const SizedBox(height: 10),
           ],
-          const SizedBox(height: 12),
-          Text(
-            'Gợi ý hôm nay:\n${_questionContextFor(focusEntry)}',
-            style: const TextStyle(
-              color: Color(0xFF31C95B),
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              height: 1.08,
-            ),
-          ),
-          const SizedBox(height: 16),
-          for (final question in questions) ...[
-            _YellowReportRow(icon: Icons.pan_tool_alt_rounded, text: question),
-            const SizedBox(height: 10),
-          ],
-          const SizedBox(height: 16),
-          const Text(
-            'Đề xuất',
-            style: TextStyle(
-              color: Color(0xFF31C95B),
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _RecommendationPanel(entry: focusEntry),
-        ],
-      ),
-    );
-  }
-}
-
-class _SpeechBubble extends StatelessWidget {
-  const _SpeechBubble({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 298,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF0AE),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              text,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 21,
-                fontWeight: FontWeight.w500,
-                height: 1.05,
-              ),
-            ),
-          ),
-          CustomPaint(
-            size: const Size(30, 25),
-            painter: _SpeechBubbleTailPainter(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SpeechBubbleTailPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFFFF0AE);
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _YellowReportRow extends StatelessWidget {
-  const _YellowReportRow({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 38),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF0AE),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: const Color(0xFFFFB800), size: 19),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: Color(0xFF333333),
-                fontSize: 19,
-                fontWeight: FontWeight.w500,
-                height: 1.25,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecommendationPanel extends StatelessWidget {
-  const _RecommendationPanel({required this.entry});
-
-  final _ParentReportEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF0AE),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Nhận biết ${_lowerFirst(entry.skillName)}\n5 phút',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF333333),
-                fontSize: 19,
-                fontWeight: FontWeight.w500,
-                height: 1.12,
-              ),
-            ),
-          ),
-          const Icon(
-            Icons.arrow_forward_rounded,
-            color: Color(0xFF80D83D),
-            size: 44,
-          ),
-          const SizedBox(width: 6),
-          FilledButton(
-            onPressed: () {},
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(128, 42),
-              backgroundColor: const Color(0xFF8AE234),
-              foregroundColor: GameColors.ink,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              textStyle: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Bắt đầu ngay', maxLines: 1),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportNotice extends StatelessWidget {
-  const _ReportNotice({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: GameColors.banana.withValues(alpha: 0.68),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.76),
-          width: 3,
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.info_rounded, color: GameColors.ink, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
     );
   }
 }
-
-class _ParentReportEntry {
-  const _ParentReportEntry({
-    required this.situationId,
-    required this.islandId,
-    required this.situationOrder,
-    required this.islandName,
-    required this.lessonTitle,
-    required this.skillName,
-    required this.skillDescription,
-    required this.realLifeQuestion,
-    required this.practicePrompt,
-    required this.watchOut,
-  });
-
-  factory _ParentReportEntry.fromDetail(SituationDetail detail) {
-    final skill = detail.skills.isNotEmpty ? detail.skills.first : null;
-    final parentReview = detail.parentReview;
-
-    return _ParentReportEntry(
-      situationId: detail.situationId,
-      islandId: detail.islandId,
-      situationOrder: detail.orderIndex,
-      islandName: detail.islandName,
-      lessonTitle: detail.title,
-      skillName: _firstNonEmpty([skill?.name, detail.title]),
-      skillDescription: _firstNonEmpty([
-        skill?.description,
-        detail.intro,
-        detail.title,
-      ]),
-      realLifeQuestion: _firstNonEmpty([
-        detail.flashcard?.question,
-        parentReview?.questionText,
-        detail.intro,
-      ]),
-      practicePrompt: _firstNonEmpty([
-        parentReview?.questionText,
-        detail.flashcard?.correctFeedback,
-        detail.intro,
-      ]),
-      watchOut: _firstNonEmpty([
-        parentReview?.suggestedActivity,
-        detail.flashcard?.wrongFeedback,
-        detail.intro,
-      ]),
-    );
-  }
-
-  final int situationId;
-  final int islandId;
-  final int situationOrder;
-  final String islandName;
-  final String lessonTitle;
-  final String skillName;
-  final String skillDescription;
-  final String realLifeQuestion;
-  final String practicePrompt;
-  final String watchOut;
-}
-
-String _firstNonEmpty(Iterable<String?> values) {
-  for (final value in values) {
-    final text = value?.trim();
-    if (text != null && text.isNotEmpty) {
-      return text;
-    }
-  }
-
-  return '';
-}
-
-int _uniqueNonEmptyCount(Iterable<String> values) {
-  return values
-      .map((value) => value.trim())
-      .where((value) => value.isNotEmpty)
-      .toSet()
-      .length;
-}
-
-_ParentReportEntry _preferredFocusEntry(List<_ParentReportEntry> entries) {
-  for (final entry in entries) {
-    if (entry.skillName.toLowerCase().contains('giao thông')) {
-      return entry;
-    }
-  }
-
-  return entries.first;
-}
-
-List<String> _reportQuestionsFor(
-  List<_ParentReportEntry> entries,
-  _ParentReportEntry focusEntry,
-) {
-  final questions = <String>[];
-  void add(String value) {
-    final text = value.trim();
-    if (text.isNotEmpty && !questions.contains(text)) {
-      questions.add(text);
-    }
-  }
-
-  add(focusEntry.realLifeQuestion);
-  add(focusEntry.practicePrompt);
-  for (final entry in entries) {
-    if (entry.islandId == focusEntry.islandId) {
-      add(entry.realLifeQuestion);
-    }
-  }
-  for (final entry in entries) {
-    add(entry.realLifeQuestion);
-  }
-
-  return questions.take(3).toList(growable: false);
-}
-
-List<String> _forgottenItemsFor(_ParentReportEntry entry) {
-  return [
-    _compactReportText(entry.watchOut),
-    _compactReportText('Ôn lại ${entry.lessonTitle}'),
-  ];
-}
-
-String _questionContextFor(_ParentReportEntry entry) {
-  final skill = entry.skillName.toLowerCase();
-  if (skill.contains('giao thông')) {
-    return 'Khi ra đường, hãy hỏi con:';
-  }
-  if (skill.contains('lạc')) {
-    return 'Khi đến nơi đông người, hãy hỏi con:';
-  }
-  if (skill.contains('điện') || skill.contains('nước nóng')) {
-    return 'Khi ở nhà, hãy hỏi con:';
-  }
-
-  return 'Khi luyện skill này, hãy hỏi con:';
-}
-
-String _lowerFirst(String value) {
-  final text = value.trim();
-  if (text.isEmpty) {
-    return text;
-  }
-
-  return '${text[0].toLowerCase()}${text.substring(1)}';
-}
-
-String _compactReportText(String value) {
-  final text = value.trim();
-  if (text.length <= 78) {
-    return text;
-  }
-
-  return '${text.substring(0, 75)}...';
-}
-
-const _fallbackParentReportEntries = [
-  _ParentReportEntry(
-    situationId: 1,
-    islandId: 1,
-    situationOrder: 1,
-    islandName: 'Personal Safety',
-    lessonTitle: 'Bài 1: Vật tròn lấp lánh',
-    skillName: 'An toàn dị vật',
-    skillDescription: 'Nhận biết đồ vật nhỏ có nguy cơ gây hóc hoặc nuốt phải.',
-    realLifeQuestion:
-        'Nếu con thấy một vật nhỏ lấp lánh trên sàn, con sẽ làm gì?',
-    practicePrompt:
-        'Cùng bé kiểm tra đồ chơi xem có chi tiết nhỏ bị rơi ra không.',
-    watchOut: 'Giữ pin nút, nam châm và dị vật nhỏ xa tầm tay của bé.',
-  ),
-  _ParentReportEntry(
-    situationId: 2,
-    islandId: 1,
-    situationOrder: 2,
-    islandName: 'Personal Safety',
-    lessonTitle: 'Bài 2: Bàn tay kỳ diệu và các cái lỗ',
-    skillName: 'An toàn điện',
-    skillDescription:
-        'Nhận biết ổ điện nguy hiểm và không chọc vật lạ vào ổ cắm.',
-    realLifeQuestion:
-        'Ổ cắm điện có phải đồ chơi không? Con nên đứng gần hay tránh xa?',
-    practicePrompt:
-        'Đi một vòng quanh nhà và chỉ cho bé các vị trí ổ điện cần tránh.',
-    watchOut: 'Ưu tiên dùng nắp đậy ổ điện ở các vị trí thấp trong nhà.',
-  ),
-  _ParentReportEntry(
-    situationId: 3,
-    islandId: 1,
-    situationOrder: 3,
-    islandName: 'Personal Safety',
-    lessonTitle: 'Bài 3: Cơn nghiện ấn nút',
-    skillName: 'An toàn nước nóng',
-    skillDescription:
-        'Biết tránh xa bình nước nóng và không tự ý nghịch nút bấm.',
-    realLifeQuestion: 'Khi thấy bình thủy đang nóng, con sẽ làm gì để an toàn?',
-    practicePrompt:
-        'Dạy bé nói “nóng” và rụt tay lại khi gặp đồ vật có nhiệt độ cao.',
-    watchOut: 'Luôn bật khóa an toàn trẻ em trên các thiết bị nước nóng.',
-  ),
-  _ParentReportEntry(
-    situationId: 4,
-    islandId: 2,
-    situationOrder: 1,
-    islandName: 'Environmental Safety',
-    lessonTitle: 'Bài 1: Qua đường an toàn',
-    skillName: 'An toàn giao thông',
-    skillDescription: 'Biết chờ đèn xanh, nắm tay người lớn và nhìn hai bên.',
-    realLifeQuestion:
-        'Trước khi qua đường, con cần chờ đèn màu gì và làm gì với ba mẹ?',
-    practicePrompt:
-        'Khi ra đường, hỏi bé đèn màu nào được đi và màu nào phải dừng.',
-    watchOut:
-        'Bé có thể quên nhìn hai bên nếu bị thu hút bởi món đồ phía đối diện.',
-  ),
-  _ParentReportEntry(
-    situationId: 5,
-    islandId: 2,
-    situationOrder: 2,
-    islandName: 'Environmental Safety',
-    lessonTitle: 'Bài 2: Bị lạc trong siêu thị',
-    skillName: 'Xử lý khi bị lạc',
-    skillDescription:
-        'Biết đứng yên và tìm nhân viên giúp đỡ khi không thấy ba mẹ.',
-    realLifeQuestion:
-        'Nếu bị lạc trong siêu thị, con nên chạy đi tìm hay đứng yên nhờ giúp?',
-    practicePrompt:
-        'Đóng vai tình huống bị lạc và luyện câu “con bị lạc, cô/chú giúp con”.',
-    watchOut: 'Nhắc bé không tự chạy lung tung vì có thể lạc xa hơn.',
-  ),
-  _ParentReportEntry(
-    situationId: 6,
-    islandId: 2,
-    situationOrder: 3,
-    islandName: 'Environmental Safety',
-    lessonTitle: 'Bài 3: Hồ nước / hồ bơi',
-    skillName: 'An toàn hồ nước',
-    skillDescription:
-        'Biết tìm người lớn khi gặp nguy hiểm gần hồ nước hoặc hồ bơi.',
-    realLifeQuestion:
-        'Nếu đồ chơi rơi xuống hồ nước, con tự lấy hay gọi người lớn?',
-    practicePrompt:
-        'Nhắc bé đứng xa mép nước và chỉ tay gọi người lớn giúp đỡ.',
-    watchOut: 'Bé dễ tiến lại gần mép nước nếu đang tiếc đồ chơi.',
-  ),
-  _ParentReportEntry(
-    situationId: 7,
-    islandId: 3,
-    situationOrder: 1,
-    islandName: 'Social Safety',
-    lessonTitle: 'Bài 1: Người lạ biết tên bé',
-    skillName: 'Cảnh giác người lạ',
-    skillDescription:
-        'Cảnh giác với người lạ giả danh người quen hoặc biết tên bé.',
-    realLifeQuestion:
-        'Nếu người lạ nói mẹ nhờ đón con, con sẽ nói gì và đi đâu?',
-    practicePrompt: 'Cùng bé tạo mật khẩu bí mật chỉ gia đình biết.',
-    watchOut: 'Bé có thể mất cảnh giác khi người lạ tỏ ra thân thiện.',
-  ),
-  _ParentReportEntry(
-    situationId: 8,
-    islandId: 3,
-    situationOrder: 2,
-    islandName: 'Social Safety',
-    lessonTitle: 'Bài 2: Lời thách đố của bạn bè',
-    skillName: 'Từ chối áp lực bạn bè',
-    skillDescription: 'Biết nói không với việc nguy hiểm dù bị bạn bè rủ rê.',
-    realLifeQuestion:
-        'Nếu bạn rủ con làm việc nguy hiểm, con có thể từ chối như thế nào?',
-    practicePrompt:
-        'Đóng vai bạn rủ làm việc sai và để bé luyện câu từ chối rõ ràng.',
-    watchOut: 'Bé có thể làm liều vì sợ bị chê cười hoặc bị bỏ rơi.',
-  ),
-  _ParentReportEntry(
-    situationId: 9,
-    islandId: 3,
-    situationOrder: 3,
-    islandName: 'Social Safety',
-    lessonTitle: 'Bài 3: Chiếc ví bị đánh rơi',
-    skillName: 'Trung thực',
-    skillDescription:
-        'Biết trả lại đồ không phải của mình dù không có ai nhìn thấy.',
-    realLifeQuestion:
-        'Nếu nhặt được đồ của người khác, con nên giữ lại hay đem trả?',
-    practicePrompt:
-        'Tạo tình huống giả định nhặt được đồ và hỏi bé sẽ xử lý ra sao.',
-    watchOut: 'Bé dễ bị cám dỗ bởi suy nghĩ “không ai nhìn thấy”.',
-  ),
-];
 
 class _PremiumOfferDialog extends StatefulWidget {
   const _PremiumOfferDialog();
@@ -1645,11 +458,13 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
   void initState() {
     super.initState();
     _dismissTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _canDismiss = true;
-        });
+      if (!mounted) {
+        return;
       }
+
+      setState(() {
+        _canDismiss = true;
+      });
     });
   }
 
@@ -1662,7 +477,6 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final dialogWidth = math.min(size.width - 32, 436.0);
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
@@ -1670,7 +484,7 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
       elevation: 0,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: dialogWidth,
+          maxWidth: math.min(size.width - 32, 436),
           maxHeight: size.height - 44,
         ),
         child: ClipRRect(
@@ -1683,7 +497,7 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
                   left: 0,
                   right: 0,
                   top: 0,
-                  child: Container(height: 14, color: const Color(0xFFFBB901)),
+                  child: Container(height: 14, color: DuoColors.primaryYellow),
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(24, 34, 24, 26),
@@ -1718,44 +532,39 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'Mở khóa toàn bộ hành trình học tập',
-                              style: TextStyle(
-                                color: GameColors.ink,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                height: 1.25,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
-                      const _PremiumFeatureList(),
-                      const SizedBox(height: 30),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: FilledButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(
-                            Icons.local_fire_department_rounded,
-                            color: Color(0xFFFF7A1A),
-                            size: 22,
-                          ),
-                          label: const Text('7 ngày dùng thử miễn phí'),
-                          style: FilledButton.styleFrom(
-                            elevation: 0,
-                            backgroundColor: const Color(0xFFFFE99C),
-                            foregroundColor: Colors.black,
-                            textStyle: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
+                      const SizedBox(height: 20),
+                      const _PremiumBenefitRow('AI gợi ý bài học mỗi ngày'),
+                      const _PremiumBenefitRow('Không giới hạn màn chơi'),
+                      const _PremiumBenefitRow(
+                        'Huy hiệu và phần thưởng đặc biệt',
+                      ),
+                      const _PremiumBenefitRow('Theo dõi tiến bộ của bé'),
+                      const _PremiumBenefitRow('Chế độ luyện tập nâng cao'),
+                      const SizedBox(height: 28),
+                      FilledButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(
+                          Icons.local_fire_department_rounded,
+                          color: Color(0xFFFF7A1A),
+                          size: 22,
+                        ),
+                        label: const Text('7 ngày dùng thử miễn phí'),
+                        style: FilledButton.styleFrom(
+                          elevation: 0,
+                          backgroundColor: const Color(0xFFFFE99C),
+                          foregroundColor: Colors.black,
+                          minimumSize: const Size(double.infinity, 54),
+                          textStyle: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),
@@ -1765,23 +574,20 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
                 Positioned(
                   top: 18,
                   right: 14,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    child: _canDismiss
-                        ? Tooltip(
-                            message: 'Đóng',
-                            child: IconButton.filled(
-                              key: const ValueKey('premium-offer-close-button'),
-                              onPressed: () => Navigator.of(context).pop(),
-                              style: IconButton.styleFrom(
-                                backgroundColor: const Color(0xFFF5F5F5),
-                                foregroundColor: GameColors.ink,
-                              ),
-                              icon: const Icon(Icons.close_rounded),
+                  child: _canDismiss
+                      ? Tooltip(
+                          message: 'Đóng',
+                          child: IconButton.filled(
+                            key: const ValueKey('premium-offer-close-button'),
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFF5F5F5),
+                              foregroundColor: DuoColors.textPrimary,
                             ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -1792,48 +598,33 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
   }
 }
 
-class _PremiumFeatureList extends StatelessWidget {
-  const _PremiumFeatureList();
+class _PremiumBenefitRow extends StatelessWidget {
+  const _PremiumBenefitRow(this.text);
 
-  static const _features = [
-    'AI gợi ý bài học mỗi ngày',
-    'Không giới hạn màn chơi',
-    'Huy hiệu và phần thưởng đặc biệt',
-    'Theo dõi tiến bộ của bé',
-    'Chế độ luyện tập nâng cao',
-  ];
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final feature in _features)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.check_rounded,
-                  color: Color(0xFF2EBB57),
-                  size: 25,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    feature,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
-                      height: 1.18,
-                    ),
-                  ),
-                ),
-              ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_rounded, color: Color(0xFF2CB34A), size: 24),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: DuoColors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1850,30 +641,42 @@ class _SmartStepsBottomNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFFFB800),
+      color: DuoColors.card,
+      elevation: 18,
+      shadowColor: const Color(0x296B5B00),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 56,
+          height: 68,
           child: Row(
             children: [
               _SmartStepsBottomNavigationItem(
-                icon: Icons.laptop_mac_rounded,
-                label: 'H\u1ecdc t\u1eadp',
+                key: const ValueKey('home-tab-button'),
+                icon: Icons.home_rounded,
+                label: 'Trang chủ',
                 isSelected: currentIndex == 0,
                 onTap: () => onSelected(0),
               ),
               _SmartStepsBottomNavigationItem(
-                icon: Icons.menu_book_rounded,
-                label: 'Ti\u1ebfn \u0111\u1ed9',
+                key: const ValueKey('learn-tab-button'),
+                icon: Icons.map_rounded,
+                label: 'Tiến bộ',
                 isSelected: currentIndex == 1,
                 onTap: () => onSelected(1),
               ),
               _SmartStepsBottomNavigationItem(
-                icon: Icons.home_outlined,
-                label: 'B\u00e9',
+                key: const ValueKey('practice-tab-button'),
+                icon: Icons.bolt_rounded,
+                label: 'Luyện tập',
                 isSelected: currentIndex == 2,
                 onTap: () => onSelected(2),
+              ),
+              _SmartStepsBottomNavigationItem(
+                key: const ValueKey('profile-tab-button'),
+                icon: Icons.face_rounded,
+                label: 'Bé',
+                isSelected: currentIndex == 3,
+                onTap: () => onSelected(3),
               ),
             ],
           ),
@@ -1885,6 +688,7 @@ class _SmartStepsBottomNavigation extends StatelessWidget {
 
 class _SmartStepsBottomNavigationItem extends StatelessWidget {
   const _SmartStepsBottomNavigationItem({
+    super.key,
     required this.icon,
     required this.label,
     required this.isSelected,
@@ -1907,21 +711,35 @@ class _SmartStepsBottomNavigationItem extends StatelessWidget {
           onTap: onTap,
           containedInkWell: true,
           highlightShape: BoxShape.rectangle,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 7, bottom: 5),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: isSelected ? DuoColors.softYellow : Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: Colors.black, size: 24),
+                Icon(
+                  icon,
+                  color: isSelected
+                      ? DuoColors.darkYellow
+                      : DuoColors.textSecondary,
+                  size: 24,
+                ),
                 const SizedBox(height: 2),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.black,
+                  style: TextStyle(
+                    color: isSelected
+                        ? DuoColors.textPrimary
+                        : DuoColors.textSecondary,
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w900,
                     height: 1.1,
                   ),
                 ),
@@ -1943,22 +761,104 @@ class _CatalogTopBar extends StatelessWidget {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 380;
 
-        return Container(
-          constraints: BoxConstraints(minHeight: isCompact ? 100 : 112),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: const [
+                Expanded(
+                  child: _HeaderMetricChip(
+                    icon: Icons.local_fire_department_rounded,
+                    label: '7 ngày',
+                    color: Color(0xFFFFEFE0),
+                    iconColor: Color(0xFFE86D1F),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: _HeaderMetricChip(
+                    icon: Icons.star_rounded,
+                    label: '1.240 điểm',
+                    color: Color(0xFFE9F8D5),
+                    iconColor: DuoColors.success,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(child: _HeaderPlanChip(plan: 'Miễn phí')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DuoCard(
+              color: DuoColors.primaryYellow,
+              borderColor: DuoColors.darkYellow.withValues(alpha: 0.24),
+              padding: EdgeInsets.fromLTRB(
+                isCompact ? 14 : 18,
+                isCompact ? 14 : 16,
+                isCompact ? 12 : 16,
+                isCompact ? 14 : 16,
+              ),
+              child: Row(
+                children: [
+                  _KidProfileAvatar(size: isCompact ? 58 : 68),
+                  SizedBox(width: isCompact ? 12 : 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Bé An',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: DuoColors.textPrimary,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Cấp 4 - Học an toàn mỗi ngày',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: DuoColors.textPrimary),
+                        ),
+                        const SizedBox(height: 12),
+                        const DuoProgressBar(value: 0.64),
+                      ],
+                    ),
+                  ),
+                  if (!isCompact) ...[
+                    const SizedBox(width: 12),
+                    Image.asset(LessonAssets.mascotHappyWave, width: 74),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ignore: unused_element
+class _CatalogTopBarOld extends StatelessWidget {
+  const _CatalogTopBarOld();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 380;
+
+        return DuoCard(
+          color: DuoColors.primaryYellow,
+          borderColor: DuoColors.darkYellow.withValues(alpha: 0.24),
           padding: EdgeInsets.symmetric(
             horizontal: isCompact ? 14 : 18,
-            vertical: isCompact ? 13 : 15,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFB800),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1A25324B),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
+            vertical: isCompact ? 14 : 16,
           ),
           child: Row(
             children: [
@@ -1966,6 +866,7 @@ class _CatalogTopBar extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
@@ -1983,7 +884,7 @@ class _CatalogTopBar extends StatelessWidget {
                       'Bài học an toàn cho bé',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 0, height: 0),
+                      style: const TextStyle(fontSize: 1, height: 0.1),
                     ),
                     const SizedBox(height: 9),
                     const Wrap(
@@ -1998,9 +899,15 @@ class _CatalogTopBar extends StatelessWidget {
                         ),
                         _HeaderMetricChip(
                           icon: Icons.star_rounded,
-                          label: '1.240 XP',
+                          label: '1.240 điểm',
                           color: Color(0xFFE9F8D5),
                           iconColor: Color(0xFF6BAF2A),
+                        ),
+                        _HeaderMetricChip(
+                          icon: Icons.military_tech_rounded,
+                          label: 'Cấp 4',
+                          color: Color(0xFFFFFFFF),
+                          iconColor: DuoColors.darkYellow,
                         ),
                       ],
                     ),
@@ -2008,11 +915,7 @@ class _CatalogTopBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              _HeaderPlanChip(
-                label: 'Tải lại',
-                icon: Icons.workspace_premium_rounded,
-                onPressed: () {},
-              ),
+              const _HeaderPlanChip(plan: 'Miễn phí'),
             ],
           ),
         );
@@ -2096,15 +999,9 @@ class _HeaderMetricChip extends StatelessWidget {
 }
 
 class _HeaderPlanChip extends StatelessWidget {
-  const _HeaderPlanChip({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-  });
+  const _HeaderPlanChip({required this.plan});
 
-  final String label;
-  final IconData icon;
-  final VoidCallback onPressed;
+  final String plan;
 
   @override
   Widget build(BuildContext context) {
@@ -2113,28 +1010,28 @@ class _HeaderPlanChip extends StatelessWidget {
       child: Material(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 11),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: Color(0xFFE3A600), size: 19),
-                const SizedBox(width: 5),
-                const Text(
-                  'Free',
-                  style: TextStyle(
-                    color: GameColors.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
-                  ),
+        child: Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 11),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.workspace_premium_rounded,
+                color: DuoColors.darkYellow,
+                size: 19,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                plan,
+                style: const TextStyle(
+                  color: GameColors.ink,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -2196,18 +1093,31 @@ class _CatalogContentFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
+        color: DuoColors.card,
         borderRadius: BorderRadius.circular(30),
-        image: const DecorationImage(
-          image: AssetImage(LessonAssets.livingRoom),
-          fit: BoxFit.cover,
-        ),
+        border: Border.all(color: DuoColors.border, width: 3),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F6B5B00),
+            blurRadius: 18,
+            offset: Offset(0, 9),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(30),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const _WarmSceneOverlay(),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFFFFDF4), DuoColors.background],
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: isLoading
@@ -2231,6 +1141,164 @@ class _CatalogContentFrame extends StatelessWidget {
   }
 }
 
+class _IslandCatalogViewNew extends StatelessWidget {
+  const _IslandCatalogViewNew({
+    required this.islands,
+    required this.onSelected,
+  });
+
+  final List<_IslandCatalogEntry> islands;
+  final ValueChanged<_IslandCatalogEntry> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (islands.isEmpty) {
+      return const _CatalogMessage(
+        icon: Icons.map_outlined,
+        title: 'Chưa có đảo',
+        body: 'Chưa có bài học đã xuất bản.',
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 560;
+        return ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            _IslandJourneyHero(islandCount: islands.length),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Chọn đảo hôm nay',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DuoColors.softYellow,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${islands.length} đảo',
+                    style: const TextStyle(
+                      color: DuoColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (isWide)
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.86,
+                ),
+                itemCount: islands.length,
+                itemBuilder: (context, index) {
+                  final island = islands[index];
+                  return _IslandTile(
+                    island: island,
+                    onTap: () => onSelected(island),
+                  );
+                },
+              )
+            else
+              for (final island in islands)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _IslandTile(
+                    island: island,
+                    onTap: () => onSelected(island),
+                  ),
+                ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _IslandJourneyHero extends StatelessWidget {
+  const _IslandJourneyHero({required this.islandCount});
+
+  final int islandCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return DuoCard(
+      color: const Color(0xFFFFF4B8),
+      borderColor: DuoColors.primaryYellow,
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _DockLabel('Nhiệm vụ hôm nay'),
+                const SizedBox(height: 8),
+                Text(
+                  'Bản đồ an toàn của bé',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Mở từng đảo, hoàn thành ô bài học và nhận sao.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 10),
+                DuoProgressBar(value: (islandCount / 6).clamp(0.18, 1)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 78,
+            height: 92,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned(
+                  bottom: 0,
+                  child: Container(
+                    width: 70,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: DuoColors.primaryYellow,
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                  ),
+                ),
+                Image.asset(LessonAssets.mascotHappyWave, width: 76),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ignore: unused_element
 class _IslandCatalogView extends StatelessWidget {
   const _IslandCatalogView({required this.islands, required this.onSelected});
 
@@ -2253,6 +1321,8 @@ class _IslandCatalogView extends StatelessWidget {
         return ListView(
           padding: EdgeInsets.zero,
           children: [
+            _IslandJourneyHero(islandCount: islands.length),
+            const SizedBox(height: 18),
             _CatalogHeader(
               label: 'Đảo học tập',
               title: 'Chọn đảo',
@@ -2295,6 +1365,115 @@ class _IslandCatalogView extends StatelessWidget {
   }
 }
 
+class _IslandSituationViewNew extends StatelessWidget {
+  const _IslandSituationViewNew({
+    required this.island,
+    required this.situations,
+    required this.isLoadingSituations,
+    required this.activeLessonId,
+    required this.loadingSituationId,
+    required this.onBack,
+    required this.onSelected,
+  });
+
+  final _IslandCatalogEntry island;
+  final List<SituationSummary> situations;
+  final bool isLoadingSituations;
+  final String? activeLessonId;
+  final int? loadingSituationId;
+  final VoidCallback onBack;
+  final ValueChanged<SituationSummary> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = island.lessonCount == 0
+        ? 0.0
+        : (situations.length / island.lessonCount).clamp(0.12, 1.0).toDouble();
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        Row(
+          children: [
+            _CircleIconButton(
+              label: 'Quay lại',
+              icon: Icons.arrow_back_rounded,
+              onPressed: onBack,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: DuoCard(
+                color: DuoColors.primaryYellow,
+                borderColor: DuoColors.darkYellow.withValues(alpha: 0.22),
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Icon(
+                        Icons.explore_rounded,
+                        color: DuoColors.darkYellow,
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            island.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${island.lessonCount} bài học',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 10),
+                          DuoProgressBar(value: progress),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (isLoadingSituations && situations.isEmpty)
+          const _CatalogMessage(
+            icon: Icons.sync_rounded,
+            title: 'Đang tải',
+            body: 'Đang mở bản đồ bài học.',
+          )
+        else if (situations.isEmpty)
+          const _CatalogMessage(
+            icon: Icons.auto_stories_outlined,
+            title: 'Chưa có bài học',
+            body: 'Đảo này chưa có bài học đã xuất bản.',
+          )
+        else
+          _LessonPathView(
+            situations: situations,
+            activeLessonId: activeLessonId,
+            loadingSituationId: loadingSituationId,
+            onSelected: onSelected,
+          ),
+      ],
+    );
+  }
+}
+
+// ignore: unused_element
 class _IslandSituationView extends StatelessWidget {
   const _IslandSituationView({
     required this.island,
@@ -2623,15 +1802,15 @@ class _IslandTile extends StatelessWidget {
     final accent = _islandAccent(island.islandId);
 
     return Material(
-      color: Colors.white.withValues(alpha: 0.88),
+      color: DuoColors.card,
       borderRadius: BorderRadius.circular(26),
       child: InkWell(
         key: ValueKey('island-${island.islandId}'),
         borderRadius: BorderRadius.circular(26),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 206),
-          padding: const EdgeInsets.all(14),
+          constraints: const BoxConstraints(minHeight: 168),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(26),
             border: Border.all(
@@ -2650,7 +1829,7 @@ class _IslandTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                height: 138,
+                height: 92,
                 child: _CatalogPicture(
                   asset: _islandImageAsset(island.islandId),
                   imageUrl: island.imageUrl,
@@ -2658,6 +1837,12 @@ class _IslandTile extends StatelessWidget {
                   icon: Icons.terrain_rounded,
                   padding: const EdgeInsets.all(18),
                 ),
+              ),
+              const SizedBox(height: 12),
+              DuoProgressBar(
+                value: (island.lessonCount / 6).clamp(0.18, 1.0),
+                height: 12,
+                color: DuoColors.success,
               ),
               const SizedBox(height: 12),
               Row(
@@ -2916,7 +2101,7 @@ class _SelectedLessonPreview extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Image.asset(LessonAssets.mascot, width: 58),
+          Image.asset(LessonAssets.mascotConfident, width: 58),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -3000,19 +2185,19 @@ Color _islandAccent(int islandId) {
 const _fallbackIslandEntries = [
   _IslandCatalogEntry(
     islandId: 1,
-    name: 'Personal Safety',
+    name: 'An toàn cá nhân',
     orderIndex: 1,
     lessonCount: 3,
   ),
   _IslandCatalogEntry(
     islandId: 2,
-    name: 'Environmental Safety',
+    name: 'An toàn môi trường',
     orderIndex: 2,
     lessonCount: 3,
   ),
   _IslandCatalogEntry(
     islandId: 3,
-    name: 'Social Safety',
+    name: 'An toàn xã hội',
     orderIndex: 3,
     lessonCount: 3,
   ),
@@ -3186,7 +2371,7 @@ class _SmartStepsLandingPageState extends State<SmartStepsLegacyLandingPage> {
               children: [
                 Row(
                   children: [
-                    Image.asset(LessonAssets.mascot, width: 54),
+                    Image.asset(LessonAssets.mascotHappyWave, width: 54),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -3370,16 +2555,16 @@ enum ChoiceTone { safe, danger }
 class GameColors {
   const GameColors._();
 
-  static const cream = Color(0xFFFFF7DF);
+  static const cream = DuoColors.background;
   static const sky = Color(0xFFBFE9FF);
   static const mint = Color(0xFFB9F6D3);
-  static const banana = Color(0xFFFFE66D);
+  static const banana = DuoColors.primaryYellow;
   static const coral = Color(0xFFFF8A7A);
-  static const safe = Color(0xFF58CC8B);
+  static const safe = DuoColors.success;
   static const danger = Color(0xFFFFB347);
-  static const ink = Color(0xFF25324B);
-  static const muted = Color(0xFF697386);
-  static const paper = Color(0xFFFFFFFF);
+  static const ink = DuoColors.textPrimary;
+  static const muted = DuoColors.textSecondary;
+  static const paper = DuoColors.card;
 }
 
 class LessonAssets {
@@ -3392,7 +2577,14 @@ class LessonAssets {
   static const childChoking = 'assets/images/child-choking.png';
   static const mother = 'assets/images/mother.png';
   static const ball = 'assets/images/ball.png';
-  static const mascot = 'assets/images/mascot.png';
+  static const mascot = 'assets/images/mascot/mascot-cat-happy.png';
+  static const mascotHappyWave =
+      'assets/images/mascot/mascot-cat-happy-wave.png';
+  static const mascotSpeaking = 'assets/images/mascot/mascot-cat-speaking.png';
+  static const mascotSinging = 'assets/images/mascot/mascot-cat-singing.png';
+  static const mascotConfident =
+      'assets/images/mascot/mascot-cat-confident.png';
+  static const mascotSulking = 'assets/images/mascot/mascot-cat-sulking.png';
   static const rewardStar = 'assets/images/reward-star.png';
 }
 
@@ -5299,7 +4491,7 @@ class _QuestionPrompt extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Image.asset(LessonAssets.mascot, width: isCompact ? 54 : 74),
+          Image.asset(LessonAssets.mascotSpeaking, width: isCompact ? 54 : 74),
           SizedBox(width: isCompact ? 9 : 12),
           Expanded(
             child: Column(

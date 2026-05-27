@@ -32,6 +32,9 @@ void main() {
     expect(find.byKey(const ValueKey('island-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('island-2')), findsOneWidget);
 
+    await tester.drag(find.byType(ListView).first, const Offset(0, -180));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('island-1')));
     await tester.tap(find.byKey(const ValueKey('island-1')));
     await tester.pumpAndSettle();
 
@@ -88,18 +91,19 @@ void main() {
 
     expect(situationService.detailCalls, 0);
 
-    await tester.tap(find.text('Tiến độ'));
+    await tester.tap(find.byKey(const ValueKey('learn-tab-button')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('parent-report-page')), findsOneWidget);
     expect(situationService.detailCalls, 3);
+    expect(find.textContaining('API Skill'), findsWidgets);
+
     await tester.drag(
       find.byKey(const ValueKey('parent-report-page')),
       const Offset(0, -900),
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('API Skill'), findsWidgets);
     expect(find.text('What should the kid do?'), findsWidgets);
     expect(
       find.textContaining('Practice from API', findRichText: true),
@@ -109,6 +113,32 @@ void main() {
       find.textContaining('Risk from API', findRichText: true),
       findsWidgets,
     );
+  });
+
+  testWidgets('profile screen is shown from child tab only', (tester) async {
+    final situationService = _FakeSituationService();
+
+    await tester.pumpWidget(
+      SmartStepsApp(
+        situationService: situationService,
+        showPremiumOfferAfterLogin: false,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('login-submit-button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('learn-tab-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('parent-report-page')), findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-screen')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('profile-tab-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('profile-screen')), findsOneWidget);
+    expect(find.byKey(const ValueKey('parent-report-page')), findsNothing);
   });
 
   testWidgets('premium offer close button appears after delay', (tester) async {

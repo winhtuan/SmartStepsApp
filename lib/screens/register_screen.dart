@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/registration_avatar_service.dart';
+import '../theme/duo_theme.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, this.onRegister});
@@ -37,7 +38,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBB901),
+      backgroundColor: DuoColors.primaryYellow,
       body: SafeArea(
         top: false,
         bottom: false,
@@ -51,11 +52,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 Positioned.fill(
                   child: DecoratedBox(
-                    decoration: const BoxDecoration(color: Color(0xFFFBB901)),
+                    decoration: const BoxDecoration(
+                      color: DuoColors.primaryYellow,
+                    ),
                     child: Align(
                       alignment: const Alignment(0, -0.78),
                       child: Image.asset(
-                        'assets/images/mascot.png',
+                        'assets/images/mascot/mascot-cat-happy.png',
                         width: 136 * scale,
                         fit: BoxFit.contain,
                       ),

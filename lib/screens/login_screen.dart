@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/duo_theme.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatelessWidget {
@@ -10,7 +11,7 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBB901),
+      backgroundColor: DuoColors.primaryYellow,
       body: SafeArea(
         top: false,
         bottom: false,
@@ -24,12 +25,14 @@ class LoginScreen extends StatelessWidget {
               children: [
                 Positioned.fill(
                   child: DecoratedBox(
-                    decoration: const BoxDecoration(color: Color(0xFFFBB901)),
+                    decoration: const BoxDecoration(
+                      color: DuoColors.primaryYellow,
+                    ),
                     child: Align(
                       alignment: const Alignment(0, -0.72),
                       child: Image.asset(
-                        'assets/images/mascot.png',
-                        width: 150 * scale,
+                        'assets/images/logo/logo smartstep-01.png',
+                        width: 190 * scale,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -182,10 +185,10 @@ class LoginScreen extends StatelessWidget {
                               },
                               style: FilledButton.styleFrom(
                                 elevation: 0,
-                                backgroundColor: const Color(0xFFFFEDA0),
-                                foregroundColor: Colors.black,
+                                backgroundColor: DuoColors.primaryYellow,
+                                foregroundColor: DuoColors.textPrimary,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
+                                  borderRadius: BorderRadius.circular(28),
                                 ),
                                 textStyle: const TextStyle(
                                   fontFamily: 'Poppins',
