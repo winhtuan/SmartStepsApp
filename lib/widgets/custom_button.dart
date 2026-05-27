@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'duo_components.dart';
+
 class CustomButton extends StatelessWidget {
   const CustomButton({
     super.key,
@@ -14,14 +16,6 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (icon == null) {
-      return FilledButton(onPressed: onPressed, child: Text(label));
-    }
-
-    return FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-    );
+    return DuoPrimaryButton(label: label, icon: icon, onPressed: onPressed);
   }
 }
