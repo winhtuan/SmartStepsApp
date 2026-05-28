@@ -7,7 +7,7 @@ import '../utils/constants.dart';
 
 class SituationService {
   SituationService({String? baseUrl, HttpClient? httpClient})
-    : _baseUri = _parseBaseUri(baseUrl ?? AppConstants.apiBaseUrl),
+    : _baseUri = _parseBaseUri(baseUrl ?? _configuredBaseUrl),
       _httpClient = httpClient ?? HttpClient();
 
   final Uri? _baseUri;
@@ -222,6 +222,19 @@ class SituationService {
   }
 
   static const _requestTimeout = Duration(seconds: 8);
+}
+
+String get _configuredBaseUrl {
+  final definedUrl = AppConstants.apiBaseUrl.trim();
+  if (definedUrl.isNotEmpty) {
+    return definedUrl;
+  }
+
+  if (Platform.isAndroid) {
+    return 'http://10.0.2.2:5078';
+  }
+
+  return 'http://localhost:5078';
 }
 
 List<IslandSummary> _islandsFromSituations(List<SituationSummary> situations) {
