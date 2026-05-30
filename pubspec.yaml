@@ -37,6 +37,7 @@ dependencies:
   video_player: ^2.11.1
   audioplayers: ^6.6.0
   supabase_flutter: ^2.12.4
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -64,9 +65,15 @@ flutter:
   assets:
     - assets/images/
     - assets/images/logo/
+    - assets/images/island/
     - assets/images/mascot/
     - assets/videos/
-    - assets/voices/lesson1/
+    - assets/videos/Crossroad/
+    - assets/videos/Safety_smallitems/
+    - assets/videos/Safety_stranger/
+    - assets/voices/Crossroad/
+    - assets/voices/Safety_smallitems/
+    - assets/voices/Safety_stranger/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -1,137 +1,505 @@
 import 'package:flutter/material.dart';
 
+import '../models/child_profile.dart';
+import '../services/local_profile_storage.dart';
 import '../theme/duo_theme.dart';
 import '../widgets/duo_components.dart';
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key, required this.profileStorage});
+
+  final LocalProfileStorage profileStorage;
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late Future<ChildProfile?> _profileFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = widget.profileStorage.readProfile();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profileStorage != widget.profileStorage) {
+      _profileFuture = widget.profileStorage.readProfile();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: const ValueKey('profile-screen'),
-      backgroundColor: DuoColors.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 26),
-          children: [
-            DuoCard(
-              color: DuoColors.primaryYellow,
-              borderColor: DuoColors.darkYellow.withValues(alpha: 0.28),
-              child: Row(
+        child: FutureBuilder<ChildProfile?>(
+          future: _profileFuture,
+          builder: (context, snapshot) {
+            final profile = snapshot.data;
+            final isLoading =
+                snapshot.connectionState == ConnectionState.waiting;
+
+            return RefreshIndicator(
+              color: DuoColors.success,
+              onRefresh: () async {
+                setState(() {
+                  _profileFuture = widget.profileStorage.readProfile();
+                });
+                await _profileFuture;
+              },
+              child: ListView(
+                key: const ValueKey('basic-info-page'),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
                 children: [
-                  Container(
-                    width: 78,
-                    height: 78,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.face_rounded,
-                      color: DuoColors.darkYellow,
-                      size: 46,
-                    ),
+                  const _BasicInfoHeader(),
+                  const SizedBox(height: 18),
+                  _ChildSummaryCard(profile: profile, isLoading: isLoading),
+                  const SizedBox(height: 16),
+                  _InfoSection(
+                    title: 'Hồ sơ của bé',
+                    icon: Icons.face_rounded,
+                    rows: [
+                      _InfoRowData('Tên của bé', _displayName(profile)),
+                      _InfoRowData(
+                        'Độ tuổi',
+                        profile?.displayAge ?? 'Chưa cập nhật',
+                      ),
+                      _InfoRowData(
+                        'Giới tính',
+                        _nonEmpty(profile?.gender, 'Chưa cập nhật'),
+                      ),
+                      _InfoRowData(
+                        'Mục tiêu chính',
+                        profile?.primaryGoal ?? 'Chưa cập nhật',
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bé An',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Level 4 • An toàn tại nhà',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        const DuoProgressBar(value: 0.64),
-                      ],
-                    ),
+                  const SizedBox(height: 14),
+                  _LearningGoalsSection(profile: profile),
+                  const SizedBox(height: 14),
+                  _InfoSection(
+                    title: 'Ứng dụng',
+                    icon: Icons.apps_rounded,
+                    rows: [
+                      const _InfoRowData('Tên ứng dụng', 'SmartSteps'),
+                      const _InfoRowData('Phiên bản', '1.0.0'),
+                      const _InfoRowData('Chế độ dữ liệu', 'Offline dùng thử'),
+                      _InfoRowData(
+                        'Gói hiện tại',
+                        profile?.planName ?? 'Miễn phí',
+                      ),
+                      _InfoRowData(
+                        'Hồ sơ local',
+                        profile == null ? 'Chưa có file' : 'Đã lưu trên máy',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _ProfileActions(
+                    onRefresh: () {
+                      setState(() {
+                        _profileFuture = widget.profileStorage.readProfile();
+                      });
+                    },
+                    onFeatureUnavailable: () =>
+                        _showFeatureInDevelopment(context),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: const [
-                Expanded(
-                  child: _ProfileStatCard(
-                    icon: Icons.local_fire_department_rounded,
-                    value: '7',
-                    label: 'Ngày streak',
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _ProfileStatCard(
-                    icon: Icons.star_rounded,
-                    value: '1.240',
-                    label: 'XP',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text('Thành tích', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            const DuoAchievementCard(
-              icon: Icons.shield_rounded,
-              title: 'Người bảo vệ nhỏ',
-              subtitle: 'Hoàn thành bài học an toàn đầu tiên',
-            ),
-            const SizedBox(height: 12),
-            const DuoAchievementCard(
-              icon: Icons.bolt_rounded,
-              title: 'Học đều mỗi ngày',
-              subtitle: 'Giữ streak trong 7 ngày',
-            ),
-            const SizedBox(height: 12),
-            const DuoAchievementCard(
-              icon: Icons.workspace_premium_rounded,
-              title: 'Chuyên gia nhí',
-              subtitle: 'Mở khóa khi đạt Level 6',
-              isUnlocked: false,
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-class _ProfileStatCard extends StatelessWidget {
-  const _ProfileStatCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
+class _BasicInfoHeader extends StatelessWidget {
+  const _BasicInfoHeader();
 
-  final IconData icon;
-  final String value;
-  final String label;
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: DuoColors.softYellow,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: DuoColors.border, width: 2),
+          ),
+          child: const Icon(
+            Icons.badge_rounded,
+            color: DuoColors.darkYellow,
+            size: 28,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Thông tin cơ bản',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Đọc từ hồ sơ đã lưu trên máy',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChildSummaryCard extends StatelessWidget {
+  const _ChildSummaryCard({required this.profile, required this.isLoading});
+
+  final ChildProfile? profile;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
     return DuoCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
+      color: const Color(0xFFFFF6D6),
+      borderColor: DuoColors.border,
+      padding: const EdgeInsets.all(16),
+      child: Row(
         children: [
-          Icon(icon, color: DuoColors.darkYellow, size: 30),
-          const SizedBox(height: 8),
-          Text(value, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium,
+          Container(
+            width: 78,
+            height: 78,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: DuoColors.darkYellow,
+                    ),
+                  )
+                : const Icon(
+                    Icons.child_care_rounded,
+                    color: DuoColors.darkYellow,
+                    size: 44,
+                  ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _displayName(profile),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  profile == null
+                      ? 'Chưa có thông tin khảo sát'
+                      : '${profile!.displayAge} • ${profile!.primaryGoal}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+                DuoProgressBar(value: profile == null ? 0.12 : 1, height: 12),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _LearningGoalsSection extends StatelessWidget {
+  const _LearningGoalsSection({required this.profile});
+
+  final ChildProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final goals = profile?.learningGoals ?? const <String>[];
+
+    return DuoCard(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+      borderColor: DuoColors.border.withValues(alpha: 0.72),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.flag_rounded,
+                color: DuoColors.darkYellow,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Mục tiêu học đã chọn',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (goals.isEmpty)
+            const _EmptyProfileNotice()
+          else
+            for (final goal in goals) ...[
+              _GoalChip(label: goal),
+              if (goal != goals.last) const SizedBox(height: 8),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyProfileNotice extends StatelessWidget {
+  const _EmptyProfileNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: DuoColors.border),
+      ),
+      child: Text(
+        'Chưa có dữ liệu khảo sát. Hãy hoàn tất form ban đầu để hồ sơ hiển thị ở đây.',
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
+}
+
+class _GoalChip extends StatelessWidget {
+  const _GoalChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: DuoColors.softYellow,
+        borderRadius: BorderRadius.circular(19),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.check_circle_rounded,
+            color: DuoColors.success,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: DuoColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                height: 1.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoSection extends StatelessWidget {
+  const _InfoSection({
+    required this.title,
+    required this.icon,
+    required this.rows,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<_InfoRowData> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return DuoCard(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 8),
+      borderColor: DuoColors.border.withValues(alpha: 0.72),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: DuoColors.darkYellow, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final row in rows) _BasicInfoRow(data: row),
+        ],
+      ),
+    );
+  }
+}
+
+class _BasicInfoRow extends StatelessWidget {
+  const _BasicInfoRow({required this.data});
+
+  final _InfoRowData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 42),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0xFFF3E7BA), width: 1)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 5,
+            child: Text(
+              data.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: DuoColors.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 6,
+            child: Text(
+              data.value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: DuoColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                height: 1.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileActions extends StatelessWidget {
+  const _ProfileActions({
+    required this.onRefresh,
+    required this.onFeatureUnavailable,
+  });
+
+  final VoidCallback onRefresh;
+  final VoidCallback onFeatureUnavailable;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DuoPrimaryButton(
+          label: 'Tải lại thông tin',
+          icon: Icons.refresh_rounded,
+          onPressed: onRefresh,
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: onFeatureUnavailable,
+          icon: const Icon(Icons.privacy_tip_rounded, size: 21),
+          label: const Text(
+            'Dữ liệu lưu trên máy',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 52),
+            foregroundColor: DuoColors.textPrimary,
+            side: const BorderSide(color: DuoColors.border, width: 2),
+            textStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoRowData {
+  const _InfoRowData(this.label, this.value);
+
+  final String label;
+  final String value;
+}
+
+String _displayName(ChildProfile? profile) {
+  return _nonEmpty(profile?.childName, 'Chưa có tên bé');
+}
+
+String _nonEmpty(String? value, String fallback) {
+  final text = value?.trim();
+  if (text == null || text.isEmpty) {
+    return fallback;
+  }
+
+  return text;
+}
+
+void _showFeatureInDevelopment(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Tính năng đang được phát triển.')),
+  );
 }

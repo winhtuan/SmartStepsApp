@@ -1,32 +1,52 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartsteps/main.dart';
 import 'package:smartsteps/models/situation.dart';
+import 'package:smartsteps/services/local_profile_storage.dart';
 import 'package:smartsteps/services/situation_service.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 void main() {
   late _FakeVideoPlayerPlatform fakeVideoPlatform;
+  late Directory profileTempDirectory;
+  late LocalProfileStorage profileStorage;
 
   setUp(() {
     fakeVideoPlatform = _FakeVideoPlayerPlatform();
     VideoPlayerPlatform.instance = fakeVideoPlatform;
+    profileTempDirectory = Directory.systemTemp.createTempSync(
+      'smartsteps_profile_test_',
+    );
+    profileStorage = LocalProfileStorage(
+      directoryOverride: profileTempDirectory,
+    );
   });
 
-  testWidgets('safe lesson flow uses backend API data', (tester) async {
+  tearDown(() {
+    if (profileTempDirectory.existsSync()) {
+      profileTempDirectory.deleteSync(recursive: true);
+    }
+  });
+
+  testWidgets('safe lesson flow uses injected lesson data', (tester) async {
     final situationService = _FakeSituationService();
+    expect(await profileStorage.hasProfile(), isFalse);
 
     await tester.pumpWidget(
       SmartStepsApp(
         situationService: situationService,
+        profileStorage: profileStorage,
         showPremiumOfferAfterLogin: false,
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.byKey(const ValueKey('login-submit-button')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await _completeInitialSurvey(tester);
 
     expect(situationService.detailCalls, 0);
     expect(find.byKey(const ValueKey('island-1')), findsOneWidget);
@@ -78,16 +98,20 @@ void main() {
     tester,
   ) async {
     final situationService = _FakeSituationService();
+    expect(await profileStorage.hasProfile(), isFalse);
 
     await tester.pumpWidget(
       SmartStepsApp(
         situationService: situationService,
+        profileStorage: profileStorage,
         showPremiumOfferAfterLogin: false,
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.byKey(const ValueKey('login-submit-button')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await _completeInitialSurvey(tester);
 
     expect(situationService.detailCalls, 0);
 
@@ -117,16 +141,20 @@ void main() {
 
   testWidgets('profile screen is shown from child tab only', (tester) async {
     final situationService = _FakeSituationService();
+    expect(await profileStorage.hasProfile(), isFalse);
 
     await tester.pumpWidget(
       SmartStepsApp(
         situationService: situationService,
+        profileStorage: profileStorage,
         showPremiumOfferAfterLogin: false,
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.byKey(const ValueKey('login-submit-button')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await _completeInitialSurvey(tester);
 
     await tester.tap(find.byKey(const ValueKey('learn-tab-button')));
     await tester.pumpAndSettle();
@@ -139,15 +167,27 @@ void main() {
 
     expect(find.byKey(const ValueKey('profile-screen')), findsOneWidget);
     expect(find.byKey(const ValueKey('parent-report-page')), findsNothing);
+    expect(find.text('Bé An'), findsWidgets);
+    expect(find.text('6 tuổi'), findsWidgets);
+    expect(find.text('Nam'), findsWidgets);
+    expect(find.textContaining('Biết quan sát'), findsWidgets);
   });
 
   testWidgets('premium offer close button appears after delay', (tester) async {
     final situationService = _FakeSituationService();
+    expect(await profileStorage.hasProfile(), isFalse);
 
-    await tester.pumpWidget(SmartStepsApp(situationService: situationService));
+    await tester.pumpWidget(
+      SmartStepsApp(
+        situationService: situationService,
+        profileStorage: profileStorage,
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.byKey(const ValueKey('login-submit-button')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await _completeInitialSurvey(tester);
 
     expect(find.text('SMARTSTEPS\nPREMIUM'), findsOneWidget);
     expect(
@@ -168,6 +208,37 @@ void main() {
 
     expect(find.byKey(const ValueKey('island-1')), findsOneWidget);
   });
+}
+
+Future<void> _completeInitialSurvey(WidgetTester tester) async {
+  expect(find.byKey(const ValueKey('initial-survey-screen')), findsOneWidget);
+
+  await tester.enterText(
+    find.byKey(const ValueKey('child-name-field')),
+    'Bé An',
+  );
+  await tester.enterText(find.byKey(const ValueKey('child-age-field')), '6');
+  await tester.tap(find.byKey(const ValueKey('gender-menu-button')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Nam').last);
+  await tester.pumpAndSettle();
+
+  await tester.scrollUntilVisible(
+    find.byKey(const ValueKey('initial-survey-terms-checkbox')),
+    500,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.tap(find.byKey(const ValueKey('initial-survey-terms-checkbox')));
+  await tester.pump();
+
+  await tester.scrollUntilVisible(
+    find.byKey(const ValueKey('initial-survey-submit-button')),
+    300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.tap(find.byKey(const ValueKey('initial-survey-submit-button')));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 final _fakeSummary = SituationSummary(

@@ -158,7 +158,8 @@ class LoginScreen extends StatelessWidget {
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {},
+                              onPressed: () =>
+                                  _showFeatureInDevelopment(context),
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: const Size(0, 30),
@@ -243,6 +244,12 @@ class LoginScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showFeatureInDevelopment(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Tính năng đang được phát triển.')),
+  );
 }
 
 class _LoginInput extends StatelessWidget {

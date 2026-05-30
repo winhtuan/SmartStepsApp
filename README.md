@@ -2,33 +2,22 @@
 
 A new Flutter project.
 
-## Backend API configuration
+## Offline lesson catalog
 
-The app loads lessons from the ASP.NET backend. It does not use a bundled
-hard-coded lesson for the main flow. Run with the backend base URL:
+The app currently ships with a hard-coded offline lesson catalog so it can be
+tested without the ASP.NET backend. Lesson data lives in
+`lib/data/offline_situation_catalog.dart`, and video/voice files are bundled
+from `assets/videos/*` and `assets/voices/*`.
 
-```bash
-flutter run --dart-define=SMARTSTEPS_API_BASE_URL=http://10.0.2.2:5078
-```
+To add a quick pilot lesson, add the media files under `assets/`, register the
+folder in `pubspec.yaml` when needed, then add the matching
+`SituationDetail` entry to the offline catalog.
 
-Use `http://localhost:5078` for desktop/web targets running on the same
-machine. The app calls `GET /api/situations`, `GET /api/situations/{id}`, and
-uses `POST /api/media/signed-url` for backend-managed private media URLs when a
-situation step has media.
+## Local profile and Premium
 
-## Media URL flow
-
-Do not pass Supabase keys to the Flutter app. Store step media paths in the
-backend as bucket object paths, for example `videos/lesson1-intro.mp4`. The app
-asks the backend for a signed media URL by `stepId`; if the backend is not
-configured, no signed URL is returned, or the database media path is invalid,
-the app shows the media error so the backend environment or database URL can be
-fixed.
-
-The current app does not send a Supabase bearer token to
-`POST /api/media/signed-url`. For development, set
-`SupabaseStorage:RequireAuthenticatedUser` to `false` on the backend, or wire a
-real login token into the request before keeping that backend option enabled.
+The first-login survey is stored as `child_profile.json` in the app documents
+directory. For the MVP Premium flow, users can enter the code `PREMIUM`; the app
+updates the same local profile file and displays the Premium plan in-app.
 
 ## Getting Started
 

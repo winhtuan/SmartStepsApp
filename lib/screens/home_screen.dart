@@ -5,13 +5,17 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:smartsteps/models/child_profile.dart';
 import 'package:smartsteps/models/situation.dart';
 import 'package:smartsteps/services/situation_service.dart';
 import 'package:video_player/video_player.dart';
 
 import '../services/supabase_config.dart';
+import '../services/local_profile_storage.dart';
 import '../theme/duo_theme.dart';
 import '../widgets/duo_components.dart';
+import 'app_feedback_dialog.dart';
+import 'initial_survey_screen.dart';
 import 'learn_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
@@ -33,15 +37,71 @@ Future<void> _configureGlobalAudio() async {
   }
 }
 
-class SmartStepsApp extends StatelessWidget {
+class SmartStepsApp extends StatefulWidget {
   SmartStepsApp({
     super.key,
     SituationService? situationService,
+    LocalProfileStorage? profileStorage,
     this.showPremiumOfferAfterLogin = true,
-  }) : situationService = situationService ?? SituationService();
+    this.showInitialSurveyAfterLogin = true,
+  }) : situationService = situationService ?? SituationService(),
+       profileStorage = profileStorage ?? const LocalProfileStorage();
 
   final SituationService situationService;
+  final LocalProfileStorage profileStorage;
   final bool showPremiumOfferAfterLogin;
+  final bool showInitialSurveyAfterLogin;
+
+  @override
+  State<SmartStepsApp> createState() => _SmartStepsAppState();
+}
+
+class _SmartStepsAppState extends State<SmartStepsApp> {
+  bool _hasCompletedInitialSurvey = false;
+
+  void _openCatalog(NavigatorState navigator) {
+    navigator.pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => SmartStepsCatalogPage(
+          situationService: widget.situationService,
+          profileStorage: widget.profileStorage,
+          showPremiumOffer: widget.showPremiumOfferAfterLogin,
+        ),
+      ),
+    );
+  }
+
+  void _handleLogin(BuildContext context) {
+    unawaited(_handleLoginAsync(Navigator.of(context)));
+  }
+
+  Future<void> _handleLoginAsync(NavigatorState navigator) async {
+    final hasProfile = await widget.profileStorage.hasProfile();
+    if (!mounted) {
+      return;
+    }
+
+    final shouldShowSurvey =
+        widget.showInitialSurveyAfterLogin &&
+        !_hasCompletedInitialSurvey &&
+        !hasProfile;
+    if (!shouldShowSurvey) {
+      _openCatalog(navigator);
+      return;
+    }
+
+    navigator.pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (surveyContext) => InitialSurveyScreen(
+          profileStorage: widget.profileStorage,
+          onCompleted: () {
+            _hasCompletedInitialSurvey = true;
+            _openCatalog(Navigator.of(surveyContext));
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,18 +109,7 @@ class SmartStepsApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'SmartSteps',
       theme: DuoTheme.light,
-      home: LoginScreen(
-        onLogin: (context) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => SmartStepsCatalogPage(
-                situationService: situationService,
-                showPremiumOffer: showPremiumOfferAfterLogin,
-              ),
-            ),
-          );
-        },
-      ),
+      home: LoginScreen(onLogin: _handleLogin),
     );
   }
 }
@@ -69,17 +118,20 @@ class SmartStepsCatalogPage extends StatefulWidget {
   const SmartStepsCatalogPage({
     super.key,
     required this.situationService,
+    required this.profileStorage,
     this.showPremiumOffer = false,
   });
 
   final SituationService situationService;
+  final LocalProfileStorage profileStorage;
   final bool showPremiumOffer;
 
   @override
   State<SmartStepsCatalogPage> createState() => _SmartStepsCatalogPageState();
 }
 
-class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
+class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
+    with WidgetsBindingObserver {
   List<_IslandCatalogEntry> _islands = _fallbackIslandEntries;
   List<SituationSummary> _situations = const [];
   int? _selectedIslandId;
@@ -89,29 +141,134 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
   bool _isLoadingIslandSituations = false;
   int? _loadingSituationId;
   String? _catalogError;
+  ChildProfile? _profile;
+  bool _isFeedbackPromptOpen = false;
 
   SituationService get _situationService => widget.situationService;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_enterCatalogViewingMode());
+    unawaited(_loadProfile());
     unawaited(_loadCatalog());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_showStartupPrompts());
+      }
+    });
+  }
+
+  Future<void> _showStartupPrompts() async {
     if (widget.showPremiumOffer) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(_showPremiumOffer());
-        }
-      });
+      await _showPremiumOfferIfNeeded();
     }
+
+    await _maybeShowFeedbackAfterFirstExit();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(widget.profileStorage.markFirstExitObserved());
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_maybeShowFeedbackAfterFirstExit());
+    }
+  }
+
+  Future<void> _maybeShowFeedbackAfterFirstExit() async {
+    if (_isFeedbackPromptOpen) {
+      return;
+    }
+
+    final shouldPrompt = await widget.profileStorage
+        .shouldPromptFeedbackAfterFirstExit();
+    if (!mounted || !shouldPrompt) {
+      return;
+    }
+
+    _isFeedbackPromptOpen = true;
+    await widget.profileStorage.markFirstExitFeedbackPromptShown();
+    if (!mounted) {
+      _isFeedbackPromptOpen = false;
+      return;
+    }
+
+    final submitted = await showAppFeedbackDialog(
+      context,
+      profileStorage: widget.profileStorage,
+      source: 'after_first_exit',
+    );
+
+    _isFeedbackPromptOpen = false;
+    if (!mounted || submitted != true) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Đã lưu đánh giá. Cảm ơn phản hồi của bạn.'),
+      ),
+    );
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await widget.profileStorage.readProfile();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _profile = profile;
+    });
+  }
+
+  Future<void> _showPremiumOfferIfNeeded() async {
+    final profile = _profile ?? await widget.profileStorage.readProfile();
+    if (!mounted || (profile?.isPremium ?? false)) {
+      return;
+    }
+
+    await _showPremiumOffer();
   }
 
   Future<void> _showPremiumOffer() {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _PremiumOfferDialog(),
+      builder: (_) => _PremiumOfferDialog(
+        profileStorage: widget.profileStorage,
+        onPremiumActivated: (profile) {
+          setState(() {
+            _profile = profile;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã nâng cấp lên Premium.')),
+          );
+        },
+      ),
     );
+  }
+
+  void _showPremiumRequired(SituationSummary summary) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${summary.title} cần Premium. Nhập mã PREMIUM để mở khóa.',
+        ),
+      ),
+    );
+    unawaited(_showPremiumOffer());
   }
 
   Future<void> _enterCatalogViewingMode() async {
@@ -240,6 +397,11 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
       return;
     }
 
+    if (!_isSituationUnlocked(summary, _profile?.isPremium ?? false)) {
+      _showPremiumRequired(summary);
+      return;
+    }
+
     setState(() {
       _loadingSituationId = summary.situationId;
       _catalogError = null;
@@ -283,7 +445,19 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
     }
 
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => LessonGameScreen(lesson: lesson)),
+      MaterialPageRoute<void>(
+        builder: (_) => LessonGameScreen(
+          lesson: lesson,
+          profileStorage: widget.profileStorage,
+          onLessonCompleted: (profile) {
+            if (mounted) {
+              setState(() {
+                _profile = profile;
+              });
+            }
+          },
+        ),
+      ),
     );
 
     if (mounted) {
@@ -317,7 +491,15 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const _CatalogTopBar(),
+                    _CatalogTopBar(
+                      profile: _profile,
+                      plan: _profile?.planName ?? 'Miễn phí',
+                      onUpgradePressed: _profile?.isPremium == true
+                          ? null
+                          : () {
+                              unawaited(_showPremiumOffer());
+                            },
+                    ),
                     const SizedBox(height: 16),
                     Expanded(
                       child: _CatalogContentFrame(
@@ -332,9 +514,11 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
                                 island: selectedIsland,
                                 situations: selectedSituations,
                                 isLoadingSituations: _isLoadingIslandSituations,
+                                isPremium: _profile?.isPremium ?? false,
                                 activeLessonId: _activeLesson?.id,
                                 loadingSituationId: _loadingSituationId,
                                 onBack: _showIslands,
+                                onLocked: _showPremiumRequired,
                                 onSelected: (summary) {
                                   unawaited(_selectSituation(summary));
                                 },
@@ -362,10 +546,11 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage> {
           ),
           ParentReportPage(
             situationService: _situationService,
+            profileStorage: widget.profileStorage,
             isActive: _selectedTabIndex == 1,
           ),
           const _PracticeTabPage(),
-          const ProfileScreen(),
+          ProfileScreen(profileStorage: widget.profileStorage),
         ],
       ),
       bottomNavigationBar: _SmartStepsBottomNavigation(
@@ -444,14 +629,23 @@ class _PracticeTabPage extends StatelessWidget {
 }
 
 class _PremiumOfferDialog extends StatefulWidget {
-  const _PremiumOfferDialog();
+  const _PremiumOfferDialog({
+    required this.profileStorage,
+    required this.onPremiumActivated,
+  });
+
+  final LocalProfileStorage profileStorage;
+  final ValueChanged<ChildProfile> onPremiumActivated;
 
   @override
   State<_PremiumOfferDialog> createState() => _PremiumOfferDialogState();
 }
 
 class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
+  final TextEditingController _codeController = TextEditingController();
   bool _canDismiss = false;
+  bool _isSubmitting = false;
+  String? _errorText;
   Timer? _dismissTimer;
 
   @override
@@ -471,7 +665,51 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
   @override
   void dispose() {
     _dismissTimer?.cancel();
+    _codeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _activatePremium() async {
+    if (_isSubmitting) {
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorText = null;
+    });
+
+    try {
+      final profile = await widget.profileStorage.activatePremium(
+        _codeController.text,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      widget.onPremiumActivated(profile);
+      Navigator.of(context).pop();
+    } on PremiumActivationException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _errorText = error.message;
+        _isSubmitting = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps premium activation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _errorText = 'Chưa nâng cấp được Premium. Vui lòng thử lại.';
+        _isSubmitting = false;
+      });
+    }
   }
 
   @override
@@ -548,15 +786,73 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
                       ),
                       const _PremiumBenefitRow('Theo dõi tiến bộ của bé'),
                       const _PremiumBenefitRow('Chế độ luyện tập nâng cao'),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 20),
+                      TextField(
+                        key: const ValueKey('premium-code-field'),
+                        controller: _codeController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: InputDecoration(
+                          hintText: 'Nhập mã PREMIUM',
+                          errorText: _errorText,
+                          filled: true,
+                          fillColor: const Color(0xFFFFF4C2),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: DuoColors.border,
+                              width: 2,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: DuoColors.darkYellow,
+                              width: 2,
+                            ),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFBA1A1A),
+                              width: 2,
+                            ),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFBA1A1A),
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       FilledButton.icon(
-                        onPressed: () {},
+                        key: const ValueKey('premium-code-submit-button'),
+                        onPressed: _isSubmitting
+                            ? null
+                            : () {
+                                unawaited(_activatePremium());
+                              },
                         icon: const Icon(
-                          Icons.local_fire_department_rounded,
+                          Icons.workspace_premium_rounded,
                           color: Color(0xFFFF7A1A),
                           size: 22,
                         ),
-                        label: const Text('7 ngày dùng thử miễn phí'),
+                        label: _isSubmitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.6,
+                                  color: Colors.black,
+                                ),
+                              )
+                            : const Text('Kích hoạt Premium'),
                         style: FilledButton.styleFrom(
                           elevation: 0,
                           backgroundColor: const Color(0xFFFFE99C),
@@ -753,38 +1049,58 @@ class _SmartStepsBottomNavigationItem extends StatelessWidget {
 }
 
 class _CatalogTopBar extends StatelessWidget {
-  const _CatalogTopBar();
+  const _CatalogTopBar({
+    required this.profile,
+    required this.plan,
+    required this.onUpgradePressed,
+  });
+
+  final ChildProfile? profile;
+  final String plan;
+  final VoidCallback? onUpgradePressed;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 380;
+        final childName = _catalogChildName(profile);
+        final completedLessons = profile?.completedLessonCount ?? 0;
+        final totalPoints = profile?.totalSkillPoints ?? 0;
+        final level = (totalPoints ~/ 3) + 1;
+        final profileLine = profile == null
+            ? 'Chưa có hồ sơ bé'
+            : '${profile!.displayAge} - ${profile!.primaryGoal}';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              children: const [
+              children: [
                 Expanded(
                   child: _HeaderMetricChip(
-                    icon: Icons.local_fire_department_rounded,
-                    label: '7 ngày',
-                    color: Color(0xFFFFEFE0),
-                    iconColor: Color(0xFFE86D1F),
+                    icon: Icons.check_circle_rounded,
+                    label: '$completedLessons/9 bài',
+                    color: const Color(0xFFFFEFE0),
+                    iconColor: const Color(0xFFE86D1F),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _HeaderMetricChip(
                     icon: Icons.star_rounded,
-                    label: '1.240 điểm',
-                    color: Color(0xFFE9F8D5),
+                    label: '$totalPoints điểm',
+                    color: const Color(0xFFE9F8D5),
                     iconColor: DuoColors.success,
                   ),
                 ),
-                SizedBox(width: 8),
-                Expanded(child: _HeaderPlanChip(plan: 'Miễn phí')),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HeaderPlanChip(
+                    plan: plan,
+                    onPressed: onUpgradePressed,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -805,11 +1121,11 @@ class _CatalogTopBar extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Bé An',
+                        Text(
+                          childName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: DuoColors.textPrimary,
                             fontSize: 26,
                             fontWeight: FontWeight.w900,
@@ -818,14 +1134,16 @@ class _CatalogTopBar extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Cấp 4 - Học an toàn mỗi ngày',
+                          '$profileLine\nCấp $level - Học an toàn mỗi ngày',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: DuoColors.textPrimary),
                         ),
                         const SizedBox(height: 12),
-                        const DuoProgressBar(value: 0.64),
+                        DuoProgressBar(
+                          value: (completedLessons / 9).clamp(0, 1).toDouble(),
+                        ),
                       ],
                     ),
                   ),
@@ -841,6 +1159,15 @@ class _CatalogTopBar extends StatelessWidget {
       },
     );
   }
+}
+
+String _catalogChildName(ChildProfile? profile) {
+  final name = profile?.childName.trim();
+  if (name == null || name.isEmpty) {
+    return 'Bé SmartSteps';
+  }
+
+  return name;
 }
 
 // ignore: unused_element
@@ -870,7 +1197,7 @@ class _CatalogTopBarOld extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Bé An',
+                      'Bé SmartSteps',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -893,13 +1220,13 @@ class _CatalogTopBarOld extends StatelessWidget {
                       children: [
                         _HeaderMetricChip(
                           icon: Icons.local_fire_department_rounded,
-                          label: '7 ngày',
+                          label: '0/9 bài',
                           color: Color(0xFFFFEFE0),
                           iconColor: Color(0xFFE86D1F),
                         ),
                         _HeaderMetricChip(
                           icon: Icons.star_rounded,
-                          label: '1.240 điểm',
+                          label: '0 điểm',
                           color: Color(0xFFE9F8D5),
                           iconColor: Color(0xFF6BAF2A),
                         ),
@@ -999,9 +1326,10 @@ class _HeaderMetricChip extends StatelessWidget {
 }
 
 class _HeaderPlanChip extends StatelessWidget {
-  const _HeaderPlanChip({required this.plan});
+  const _HeaderPlanChip({required this.plan, this.onPressed});
 
   final String plan;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -1010,28 +1338,34 @@ class _HeaderPlanChip extends StatelessWidget {
       child: Material(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(999),
-        child: Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 11),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.workspace_premium_rounded,
-                color: DuoColors.darkYellow,
-                size: 19,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                plan,
-                style: const TextStyle(
-                  color: GameColors.ink,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  height: 1,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: onPressed,
+          child: Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: DuoColors.darkYellow,
+                  size: 19,
                 ),
-              ),
-            ],
+                const SizedBox(width: 5),
+                Text(
+                  plan,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: GameColors.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1076,6 +1410,15 @@ _IslandCatalogEntry? _islandById(
   }
 
   return null;
+}
+
+bool _requiresPremium(SituationSummary situation) {
+  return (situation.islandId == 2 || situation.islandId == 3) &&
+      situation.orderIndex >= 2;
+}
+
+bool _isSituationUnlocked(SituationSummary situation, bool isPremium) {
+  return isPremium || !_requiresPremium(situation);
 }
 
 class _CatalogContentFrame extends StatelessWidget {
@@ -1370,18 +1713,22 @@ class _IslandSituationViewNew extends StatelessWidget {
     required this.island,
     required this.situations,
     required this.isLoadingSituations,
+    required this.isPremium,
     required this.activeLessonId,
     required this.loadingSituationId,
     required this.onBack,
+    required this.onLocked,
     required this.onSelected,
   });
 
   final _IslandCatalogEntry island;
   final List<SituationSummary> situations;
   final bool isLoadingSituations;
+  final bool isPremium;
   final String? activeLessonId;
   final int? loadingSituationId;
   final VoidCallback onBack;
+  final ValueChanged<SituationSummary> onLocked;
   final ValueChanged<SituationSummary> onSelected;
 
   @override
@@ -1415,10 +1762,12 @@ class _IslandSituationViewNew extends StatelessWidget {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      child: const Icon(
-                        Icons.explore_rounded,
-                        color: DuoColors.darkYellow,
-                        size: 34,
+                      child: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: _CatalogPictureImage(
+                          asset: _islandImageAsset(island.islandId),
+                          imageUrl: island.imageUrl,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1464,8 +1813,10 @@ class _IslandSituationViewNew extends StatelessWidget {
         else
           _LessonPathView(
             situations: situations,
+            isPremium: isPremium,
             activeLessonId: activeLessonId,
             loadingSituationId: loadingSituationId,
+            onLocked: onLocked,
             onSelected: onSelected,
           ),
       ],
@@ -1531,8 +1882,10 @@ class _IslandSituationView extends StatelessWidget {
         else
           _LessonPathView(
             situations: situations,
+            isPremium: false,
             activeLessonId: activeLessonId,
             loadingSituationId: loadingSituationId,
+            onLocked: onSelected,
             onSelected: onSelected,
           ),
       ],
@@ -1570,14 +1923,18 @@ class _CatalogHeader extends StatelessWidget {
 class _LessonPathView extends StatelessWidget {
   const _LessonPathView({
     required this.situations,
+    required this.isPremium,
     required this.activeLessonId,
     required this.loadingSituationId,
+    required this.onLocked,
     required this.onSelected,
   });
 
   final List<SituationSummary> situations;
+  final bool isPremium;
   final String? activeLessonId;
   final int? loadingSituationId;
+  final ValueChanged<SituationSummary> onLocked;
   final ValueChanged<SituationSummary> onSelected;
 
   @override
@@ -1601,16 +1958,27 @@ class _LessonPathView extends StatelessWidget {
           Column(
             children: [
               for (var index = 0; index < situations.length; index++) ...[
-                _LessonPathNode(
-                  situation: situations[index],
-                  index: index,
-                  isSelected:
-                      activeLessonId ==
-                      'situation-${situations[index].situationId}',
-                  isLoading:
-                      loadingSituationId == situations[index].situationId,
-                  isUnlocked: index <= 2,
-                  onTap: () => onSelected(situations[index]),
+                Builder(
+                  builder: (context) {
+                    final situation = situations[index];
+                    final isUnlocked = _isSituationUnlocked(
+                      situation,
+                      isPremium,
+                    );
+
+                    return _LessonPathNode(
+                      situation: situation,
+                      index: index,
+                      isSelected:
+                          activeLessonId ==
+                          'situation-${situation.situationId}',
+                      isLoading: loadingSituationId == situation.situationId,
+                      isUnlocked: isUnlocked,
+                      onTap: () => isUnlocked
+                          ? onSelected(situation)
+                          : onLocked(situation),
+                    );
+                  },
                 ),
                 if (index != situations.length - 1) const SizedBox(height: 22),
               ],
@@ -1653,6 +2021,7 @@ class _LessonPathNode extends StatelessWidget {
         ? const Color(0xFFFFC928)
         : const Color(0xFFD7DCE2);
     final foreground = isUnlocked ? GameColors.ink : const Color(0xFF87909D);
+    final lessonIcon = _situationIcon(situation);
 
     return Align(
       alignment: alignment,
@@ -1696,9 +2065,9 @@ class _LessonPathNode extends StatelessWidget {
                       )
                     : Icon(
                         isSelected
-                            ? Icons.star_rounded
+                            ? Icons.play_arrow_rounded
                             : isUnlocked
-                            ? Icons.check_rounded
+                            ? lessonIcon
                             : Icons.lock_rounded,
                         color: foreground,
                         size: isSelected ? 40 : 34,
@@ -1717,7 +2086,11 @@ class _LessonPathNode extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              isSelected ? 'START' : 'Bài ${situation.orderIndex}',
+              isSelected
+                  ? 'START'
+                  : isUnlocked
+                  ? 'Bài ${situation.orderIndex}'
+                  : 'PREMIUM',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -1840,7 +2213,7 @@ class _IslandTile extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               DuoProgressBar(
-                value: (island.lessonCount / 6).clamp(0.18, 1.0),
+                value: (island.lessonCount / 3).clamp(0.18, 1.0),
                 height: 12,
                 color: DuoColors.success,
               ),
@@ -1947,6 +2320,15 @@ class _CatalogPictureImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localImageAsset = imageUrl?.trim();
+    if (localImageAsset != null && localImageAsset.startsWith('assets/')) {
+      return Image.asset(
+        localImageAsset,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => Image.asset(asset, fit: BoxFit.contain),
+      );
+    }
+
     final uri = imageUrl == null ? null : Uri.tryParse(imageUrl!);
     if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
       return Image.network(
@@ -2073,7 +2455,10 @@ class _SituationTile extends StatelessWidget {
 }
 
 String _islandImageAsset(int islandId) {
-  return LessonAssets.islandIcon;
+  return switch (islandId) {
+    1 => LessonAssets.safetyIsland,
+    _ => LessonAssets.islandIcon,
+  };
 }
 
 String _situationImageAsset(SituationSummary situation) {
@@ -2087,6 +2472,39 @@ String _situationImageAsset(SituationSummary situation) {
   ];
 
   return assets[(situation.orderIndex - 1).abs() % assets.length];
+}
+
+IconData _situationIcon(SituationSummary situation) {
+  final text = '${situation.title} ${situation.intro ?? ''}'.toLowerCase();
+  if (text.contains('đường') || text.contains('giao thông')) {
+    return Icons.traffic_rounded;
+  }
+  if (text.contains('siêu thị') || text.contains('bị lạc')) {
+    return Icons.storefront_rounded;
+  }
+  if (text.contains('người lạ') || text.contains('cảnh giác')) {
+    return Icons.person_off_rounded;
+  }
+  if (text.contains('bạn bè') || text.contains('thách đố')) {
+    return Icons.groups_rounded;
+  }
+  if (text.contains('ví') || text.contains('nhặt được')) {
+    return Icons.account_balance_wallet_rounded;
+  }
+  if (text.contains('vật') || text.contains('miệng')) {
+    return Icons.radio_button_checked_rounded;
+  }
+  if (text.contains('điện') || text.contains('ổ cắm')) {
+    return Icons.bolt_rounded;
+  }
+  if (text.contains('nước nóng') || text.contains('bỏng')) {
+    return Icons.local_fire_department_rounded;
+  }
+  if (text.contains('nước') || text.contains('hồ')) {
+    return Icons.water_drop_rounded;
+  }
+
+  return Icons.shield_rounded;
 }
 
 // ignore: unused_element
@@ -2185,19 +2603,19 @@ Color _islandAccent(int islandId) {
 const _fallbackIslandEntries = [
   _IslandCatalogEntry(
     islandId: 1,
-    name: 'An toàn cá nhân',
+    name: 'Đảo an toàn cá nhân',
     orderIndex: 1,
     lessonCount: 3,
   ),
   _IslandCatalogEntry(
     islandId: 2,
-    name: 'An toàn môi trường',
+    name: 'Đảo an toàn xã hội',
     orderIndex: 2,
     lessonCount: 3,
   ),
   _IslandCatalogEntry(
     islandId: 3,
-    name: 'An toàn xã hội',
+    name: 'Đảo an toàn môi trường',
     orderIndex: 3,
     lessonCount: 3,
   ),
@@ -2572,6 +2990,7 @@ class LessonAssets {
 
   static const livingRoom = 'assets/images/living_room.jpg';
   static const islandIcon = 'assets/images/Island_Icon.png';
+  static const safetyIsland = 'assets/images/island/safety-island.png';
   static const kid = 'assets/images/kid.png';
   static const childHappy = 'assets/images/child-happy.png';
   static const childChoking = 'assets/images/child-choking.png';
@@ -2591,6 +3010,9 @@ class LessonAssets {
 class SafetyLesson {
   const SafetyLesson({
     required this.id,
+    required this.situationId,
+    required this.islandId,
+    required this.islandName,
     required this.title,
     required this.topic,
     required this.ageRange,
@@ -2613,6 +3035,9 @@ class SafetyLesson {
   });
 
   final String id;
+  final int situationId;
+  final int islandId;
+  final String islandName;
   final String title;
   final String topic;
   final String ageRange;
@@ -2710,6 +3135,9 @@ SafetyLesson _lessonFromSituation(SituationDetail situation) {
 
   return SafetyLesson(
     id: 'situation-${situation.situationId}',
+    situationId: situation.situationId,
+    islandId: situation.islandId,
+    islandName: situation.islandName,
     title: situation.title,
     topic: skill?.name ?? situation.islandName,
     ageRange: '4-9 tuổi',
@@ -2872,6 +3300,10 @@ const _outsidePortraitOrientations = [
   DeviceOrientation.portraitUp,
   DeviceOrientation.portraitDown,
 ];
+const _lessonLandscapeOrientations = [
+  DeviceOrientation.landscapeLeft,
+  DeviceOrientation.landscapeRight,
+];
 final _voiceAudioContext = AudioContext(
   android: const AudioContextAndroid(
     contentType: AndroidContentType.speech,
@@ -2899,6 +3331,9 @@ class _BackendMediaResolver {
   Future<Uri?> signedVideoUrlFor(LessonVideoCopy copy) async {
     final stepId = copy.stepId;
     if (stepId == null || copy.asset == null || copy.asset!.trim().isEmpty) {
+      return null;
+    }
+    if (copy.asset!.trim().startsWith('assets/')) {
       return null;
     }
 
@@ -2942,9 +3377,16 @@ class _BackendMediaResolver {
 }
 
 class LessonGameScreen extends StatefulWidget {
-  const LessonGameScreen({super.key, required this.lesson});
+  const LessonGameScreen({
+    super.key,
+    required this.lesson,
+    this.profileStorage,
+    this.onLessonCompleted,
+  });
 
   final SafetyLesson lesson;
+  final LocalProfileStorage? profileStorage;
+  final ValueChanged<ChildProfile>? onLessonCompleted;
 
   @override
   State<LessonGameScreen> createState() => _LessonGameScreenState();
@@ -2954,6 +3396,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   LessonPhase _phase = LessonPhase.introVideo;
   String? _selectedChoiceId;
   bool _parentReadingMode = false;
+  bool _hasRecordedCompletion = false;
   Timer? _rewardTimer;
 
   LessonChoice? get _selectedChoice {
@@ -2990,7 +3433,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
   Future<void> _enterLessonViewingMode() async {
     try {
-      await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
+      await SystemChrome.setPreferredOrientations(_lessonLandscapeOrientations);
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     } catch (_) {
       // Orientation and fullscreen APIs are unavailable on some test/desktop hosts.
@@ -3010,6 +3453,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     _rewardTimer?.cancel();
     setState(() {
       _selectedChoiceId = null;
+      _hasRecordedCompletion = false;
       _phase = LessonPhase.introVideo;
     });
   }
@@ -3073,6 +3517,10 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
   void _showReward() {
     _rewardTimer?.cancel();
+    if (!_hasRecordedCompletion) {
+      _hasRecordedCompletion = true;
+      unawaited(_recordLessonCompletion());
+    }
     setState(() {
       _phase = LessonPhase.rewardBurst;
     });
@@ -3091,6 +3539,39 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     setState(() {
       _phase = LessonPhase.parent;
     });
+  }
+
+  Future<void> _recordLessonCompletion() async {
+    final profileStorage = widget.profileStorage;
+    if (profileStorage == null) {
+      return;
+    }
+
+    try {
+      final lesson = widget.lesson;
+      final profile = await profileStorage.recordLessonCompletion(
+        situationId: lesson.situationId,
+        islandId: lesson.islandId,
+        islandName: lesson.islandName,
+        lessonTitle: lesson.title,
+        skillName: lesson.topic,
+        skillDescription: lesson.parentNotes.skill,
+        practicePrompt: lesson.parentNotes.practice,
+        riskAlert: lesson.parentNotes.risk,
+      );
+
+      widget.onLessonCompleted?.call(profile);
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã cộng +1 điểm kỹ năng ${lesson.topic}.')),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps lesson completion save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   @override
@@ -3335,7 +3816,7 @@ class _StoryClipStageState extends State<_StoryClipStage> {
         setState(() {
           _hasVideoLoadFailed = true;
           _videoLoadErrorMessage =
-              'No media URL is configured for this lesson step.';
+              'Bài học này chưa có video. Bấm bỏ qua để học phần câu hỏi.';
         });
       }
       return;
@@ -3345,7 +3826,12 @@ class _StoryClipStageState extends State<_StoryClipStage> {
       final remoteVideoUrl = await _mediaResolver.signedVideoUrlFor(
         widget.copy,
       );
-      controller = remoteVideoUrl != null
+      controller = mediaAsset.startsWith('assets/')
+          ? VideoPlayerController.asset(
+              mediaAsset,
+              videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
+            )
+          : remoteVideoUrl != null
           ? VideoPlayerController.networkUrl(
               remoteVideoUrl,
               videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
@@ -3657,9 +4143,7 @@ class _VideoLoadErrorBadge extends StatelessWidget {
       ),
       constraints: const BoxConstraints(maxWidth: 320),
       child: Text(
-        message == null || message!.isEmpty
-            ? 'Khong tai duoc video'
-            : 'Khong tai duoc video: $message',
+        message == null || message!.isEmpty ? 'Không tải được video' : message!,
         maxLines: 4,
         overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.center,
