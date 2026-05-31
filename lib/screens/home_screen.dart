@@ -19,6 +19,7 @@ import 'initial_survey_screen.dart';
 import 'learn_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
+import 'quick_review_screen.dart';
 
 Future<void> runSmartStepsApp() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,7 +43,7 @@ class SmartStepsApp extends StatefulWidget {
     super.key,
     SituationService? situationService,
     LocalProfileStorage? profileStorage,
-    this.showPremiumOfferAfterLogin = true,
+    this.showPremiumOfferAfterLogin = false,
     this.showInitialSurveyAfterLogin = true,
   }) : situationService = situationService ?? SituationService(),
        profileStorage = profileStorage ?? const LocalProfileStorage();
@@ -242,7 +243,22 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
     await _showPremiumOffer();
   }
 
-  Future<void> _showPremiumOffer() {
+  Future<void> _showPremiumOffer() async {
+    // 1. Hiển thị popup toán học bảo vệ trước
+    final isParent = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // Bắt buộc phải nhập hoặc bấm hủy
+      builder: (_) => const _ParentalGateDialog(),
+    );
+
+    // 2. Nếu trả lời sai hoặc bấm Hủy thì dừng lại, không hiện form nhập mã
+    if (isParent != true) {
+      return;
+    }
+
+    if (!mounted) return;
+
+    // 3. Nếu đúng, tiếp tục hiển thị popup Premium Offer ban đầu
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -603,10 +619,17 @@ class _PracticeTabPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const DuoAchievementCard(
+            DuoAchievementCard(
               icon: Icons.replay_rounded,
               title: 'Ôn bài nhanh',
               subtitle: '5 câu hỏi ngắn để ghi nhớ lâu hơn',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const QuickReviewScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             const DuoAchievementCard(
@@ -5942,6 +5965,108 @@ class _FloatingImageState extends State<_FloatingImage>
         width: widget.width,
         fit: BoxFit.contain,
       ),
+    );
+  }
+}
+
+class _ParentalGateDialog extends StatefulWidget {
+  const _ParentalGateDialog();
+
+  @override
+  State<_ParentalGateDialog> createState() => _ParentalGateDialogState();
+}
+
+class _ParentalGateDialogState extends State<_ParentalGateDialog> {
+  final TextEditingController _answerController = TextEditingController();
+  late int _num1;
+  late int _num2;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    final random = math.Random();
+    // Tạo phép nhân đơn giản ngẫu nhiên từ 2 đến 9
+    _num1 = random.nextInt(8) + 2;
+    _num2 = random.nextInt(8) + 2;
+  }
+
+  @override
+  void dispose() {
+    _answerController.dispose();
+    super.dispose();
+  }
+
+  void _checkAnswer() {
+    final answer = int.tryParse(_answerController.text.trim());
+    // Kiểm tra kết quả phép tính
+    if (answer == _num1 * _num2) {
+      Navigator.of(context).pop(true); // Trả về true nếu tính đúng
+    } else {
+      setState(() {
+        _errorText = 'Kết quả chưa chính xác!';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text(
+        'Dành cho phụ huynh',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: Color(0xFFFF7A1A)
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Vui lòng giải phép tính sau để tiếp tục:',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '$_num1 x $_num2 = ?',
+            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _answerController,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              hintText: 'Nhập kết quả',
+              errorText: _errorText,
+              filled: true,
+              fillColor: const Color(0xFFF5F5F5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Hủy', style: TextStyle(color: Colors.grey, fontSize: 16)),
+        ),
+        FilledButton(
+          onPressed: _checkAnswer,
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFFFE99C),
+            foregroundColor: Colors.black,
+            textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          child: const Text('Xác nhận'),
+        ),
+      ],
     );
   }
 }

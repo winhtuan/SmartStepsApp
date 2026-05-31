@@ -201,6 +201,7 @@ class ParentReviewQuestion {
     required this.skillId,
     required this.questionText,
     this.suggestedActivity,
+    this.watchOutTip,
   });
 
   factory ParentReviewQuestion.fromJson(Map<String, dynamic> json) {
@@ -209,6 +210,7 @@ class ParentReviewQuestion {
       skillId: _readInt(json['skillId']),
       questionText: _readString(json['questionText']),
       suggestedActivity: _readNullableString(json['suggestedActivity']),
+      watchOutTip: _readNullableString(json['watchOutTip']),
     );
   }
 
@@ -216,6 +218,7 @@ class ParentReviewQuestion {
   final int skillId;
   final String questionText;
   final String? suggestedActivity;
+  final String? watchOutTip;
 }
 
 int _readInt(Object? value) {

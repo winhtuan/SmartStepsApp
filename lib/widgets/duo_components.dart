@@ -120,17 +120,19 @@ class DuoAchievementCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.isUnlocked = true,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final bool isUnlocked;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final accent = isUnlocked ? DuoColors.primaryYellow : DuoColors.lockedGray;
-    return DuoCard(
+    final card = DuoCard(
       padding: const EdgeInsets.all(14),
       borderColor: accent.withValues(alpha: 0.55),
       child: Row(
@@ -168,6 +170,15 @@ class DuoAchievementCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (onTap == null || !isUnlocked) {
+      return card;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: card,
     );
   }
 }
