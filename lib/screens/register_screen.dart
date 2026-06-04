@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/registration_avatar_service.dart';
 import '../theme/duo_theme.dart';
+import '../widgets/smartsteps_press_effect.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, this.onRegister});
@@ -181,32 +182,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           SizedBox(
                             width: double.infinity,
                             height: 50,
-                            child: FilledButton(
-                              key: const ValueKey('register-submit-button'),
-                              onPressed: _acceptedTerms
-                                  ? () {
-                                      widget.onRegister?.call(context);
-                                    }
-                                  : null,
-                              style: FilledButton.styleFrom(
-                                elevation: 0,
-                                backgroundColor: const Color(0xFFFFEDA0),
-                                disabledBackgroundColor: const Color(
-                                  0xFFFFEDA0,
-                                ).withValues(alpha: 0.55),
-                                foregroundColor: Colors.black,
-                                disabledForegroundColor: Colors.black
-                                    .withValues(alpha: 0.42),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
+                            child: SmartStepsPressEffect(
+                              enabled: _acceptedTerms,
+                              child: FilledButton(
+                                key: const ValueKey('register-submit-button'),
+                                onPressed: _acceptedTerms
+                                    ? () {
+                                        widget.onRegister?.call(context);
+                                      }
+                                    : null,
+                                style: FilledButton.styleFrom(
+                                  elevation: 0,
+                                  backgroundColor: const Color(0xFFFFEDA0),
+                                  disabledBackgroundColor: const Color(
+                                    0xFFFFEDA0,
+                                  ).withValues(alpha: 0.55),
+                                  foregroundColor: Colors.black,
+                                  disabledForegroundColor: Colors.black
+                                      .withValues(alpha: 0.42),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                textStyle: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w400,
-                                ),
+                                child: const Text('Đăng ký'),
                               ),
-                              child: const Text('Đăng ký'),
                             ),
                           ),
                         ],
@@ -377,21 +381,28 @@ class _GenderButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 46,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: isSelected ? const Color(0xFFFFEDA0) : Colors.white,
-          foregroundColor: Colors.black,
-          side: BorderSide(
-            color: isSelected ? const Color(0xFFFBB901) : Colors.black,
-            width: isSelected ? 2 : 1,
+      child: SmartStepsPressEffect(
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            backgroundColor: isSelected
+                ? const Color(0xFFFFEDA0)
+                : Colors.white,
+            foregroundColor: Colors.black,
+            side: BorderSide(
+              color: isSelected ? const Color(0xFFFBB901) : Colors.black,
+              width: isSelected ? 2 : 1,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
-        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }
@@ -481,45 +492,47 @@ class _AvatarButton extends StatelessWidget {
       button: true,
       selected: isSelected,
       label: avatar.label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          height: 94,
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-          decoration: BoxDecoration(
-            color: avatar.color,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: isSelected ? Colors.black : Colors.transparent,
-              width: 2,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 10,
-                offset: Offset(0, 4),
+      child: SmartStepsPressEffect(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            height: 94,
+            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
+            decoration: BoxDecoration(
+              color: avatar.color,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isSelected ? Colors.black : Colors.transparent,
+                width: 2,
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _AvatarImage(avatar: avatar),
-              const SizedBox(height: 5),
-              Text(
-                avatar.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x14000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _AvatarImage(avatar: avatar),
+                const SizedBox(height: 5),
+                Text(
+                  avatar.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

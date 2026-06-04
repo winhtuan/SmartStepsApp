@@ -11,9 +11,11 @@ import 'package:smartsteps/services/situation_service.dart';
 import 'package:video_player/video_player.dart';
 
 import '../services/supabase_config.dart';
+import '../services/app_audio_controller.dart';
 import '../services/local_profile_storage.dart';
 import '../theme/duo_theme.dart';
 import '../widgets/duo_components.dart';
+import '../widgets/smartsteps_press_effect.dart';
 import 'app_feedback_dialog.dart';
 import 'initial_survey_screen.dart';
 import 'learn_screen.dart';
@@ -26,7 +28,7 @@ Future<void> runSmartStepsApp() async {
   await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
   await initializeSupabaseIfConfigured();
   await _configureGlobalAudio();
-  runApp(SmartStepsApp());
+  runApp(SmartStepsApp(enableAudio: true));
 }
 
 Future<void> _configureGlobalAudio() async {
@@ -45,6 +47,7 @@ class SmartStepsApp extends StatefulWidget {
     LocalProfileStorage? profileStorage,
     this.showPremiumOfferAfterLogin = false,
     this.showInitialSurveyAfterLogin = true,
+    this.enableAudio = false,
   }) : situationService = situationService ?? SituationService(),
        profileStorage = profileStorage ?? const LocalProfileStorage();
 
@@ -52,13 +55,32 @@ class SmartStepsApp extends StatefulWidget {
   final LocalProfileStorage profileStorage;
   final bool showPremiumOfferAfterLogin;
   final bool showInitialSurveyAfterLogin;
+  final bool enableAudio;
 
   @override
   State<SmartStepsApp> createState() => _SmartStepsAppState();
 }
 
 class _SmartStepsAppState extends State<SmartStepsApp> {
+  final SmartStepsAudioController _audioController =
+      SmartStepsAudioController();
   bool _hasCompletedInitialSurvey = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.enableAudio) {
+        unawaited(_audioController.startBackgroundMusic());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _audioController.dispose();
+    super.dispose();
+  }
 
   void _openCatalog(NavigatorState navigator) {
     navigator.pushReplacement(
@@ -106,12 +128,18 @@ class _SmartStepsAppState extends State<SmartStepsApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    final app = MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'SmartSteps',
       theme: DuoTheme.light,
       home: LoginScreen(onLogin: _handleLogin),
     );
+
+    if (!widget.enableAudio) {
+      return app;
+    }
+
+    return SmartStepsAudioScope(controller: _audioController, child: app);
   }
 }
 
@@ -156,6 +184,9 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
     unawaited(_loadCatalog());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        unawaited(
+          SmartStepsAudioScope.maybeOf(context)?.ensureBackgroundMusicPlaying(),
+        );
         unawaited(_showStartupPrompts());
       }
     });
@@ -509,6 +540,7 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
                   children: [
                     _CatalogTopBar(
                       profile: _profile,
+                      audioController: SmartStepsAudioScope.maybeOf(context),
                       plan: _profile?.planName ?? 'Miễn phí',
                       onUpgradePressed: _profile?.isPremium == true
                           ? null
@@ -854,36 +886,39 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      FilledButton.icon(
-                        key: const ValueKey('premium-code-submit-button'),
-                        onPressed: _isSubmitting
-                            ? null
-                            : () {
-                                unawaited(_activatePremium());
-                              },
-                        icon: const Icon(
-                          Icons.workspace_premium_rounded,
-                          color: Color(0xFFFF7A1A),
-                          size: 22,
-                        ),
-                        label: _isSubmitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.6,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : const Text('Kích hoạt Premium'),
-                        style: FilledButton.styleFrom(
-                          elevation: 0,
-                          backgroundColor: const Color(0xFFFFE99C),
-                          foregroundColor: Colors.black,
-                          minimumSize: const Size(double.infinity, 54),
-                          textStyle: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
+                      SmartStepsPressEffect(
+                        enabled: !_isSubmitting,
+                        child: FilledButton.icon(
+                          key: const ValueKey('premium-code-submit-button'),
+                          onPressed: _isSubmitting
+                              ? null
+                              : () {
+                                  unawaited(_activatePremium());
+                                },
+                          icon: const Icon(
+                            Icons.workspace_premium_rounded,
+                            color: Color(0xFFFF7A1A),
+                            size: 24,
+                          ),
+                          label: _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.6,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              : const Text('Kích hoạt Premium'),
+                          style: FilledButton.styleFrom(
+                            elevation: 0,
+                            backgroundColor: const Color(0xFFFFE99C),
+                            foregroundColor: Colors.black,
+                            minimumSize: const Size(double.infinity, 56),
+                            textStyle: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
                       ),
@@ -1026,43 +1061,45 @@ class _SmartStepsBottomNavigationItem extends StatelessWidget {
         selected: isSelected,
         button: true,
         label: label,
-        child: InkResponse(
-          onTap: onTap,
-          containedInkWell: true,
-          highlightShape: BoxShape.rectangle,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: isSelected ? DuoColors.softYellow : Colors.transparent,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  color: isSelected
-                      ? DuoColors.darkYellow
-                      : DuoColors.textSecondary,
-                  size: 24,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+        child: SmartStepsPressEffect(
+          child: InkResponse(
+            onTap: onTap,
+            containedInkWell: true,
+            highlightShape: BoxShape.rectangle,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected ? DuoColors.softYellow : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
                     color: isSelected
-                        ? DuoColors.textPrimary
+                        ? DuoColors.darkYellow
                         : DuoColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
+                    size: 25,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isSelected
+                          ? DuoColors.textPrimary
+                          : DuoColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1076,11 +1113,13 @@ class _CatalogTopBar extends StatelessWidget {
     required this.profile,
     required this.plan,
     required this.onUpgradePressed,
+    this.audioController,
   });
 
   final ChildProfile? profile;
   final String plan;
   final VoidCallback? onUpgradePressed;
+  final SmartStepsAudioController? audioController;
 
   @override
   Widget build(BuildContext context) {
@@ -1126,6 +1165,13 @@ class _CatalogTopBar extends StatelessWidget {
                 ),
               ],
             ),
+            if (audioController != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _AudioToggleCluster(controller: audioController!),
+              ),
+            ],
             const SizedBox(height: 12),
             DuoCard(
               color: DuoColors.primaryYellow,
@@ -1180,6 +1226,99 @@ class _CatalogTopBar extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _AudioToggleCluster extends StatelessWidget {
+  const _AudioToggleCluster({required this.controller});
+
+  final SmartStepsAudioController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AudioToggleButton(
+              tooltip: controller.isMusicEnabled
+                  ? 'Táº¯t nháº¡c ná»n'
+                  : 'Báº­t nháº¡c ná»n',
+              icon: controller.isMusicEnabled
+                  ? Icons.music_note_rounded
+                  : Icons.music_off_rounded,
+              isEnabled: controller.isMusicEnabled,
+              playPressSound: controller.isSfxEnabled,
+              onPressed: controller.toggleMusic,
+            ),
+            const SizedBox(width: 8),
+            _AudioToggleButton(
+              tooltip: controller.isSfxEnabled
+                  ? 'Táº¯t Ã¢m thanh nÃºt'
+                  : 'Báº­t Ã¢m thanh nÃºt',
+              icon: controller.isSfxEnabled
+                  ? Icons.ads_click_rounded
+                  : Icons.volume_off_rounded,
+              isEnabled: controller.isSfxEnabled,
+              playPressSound: controller.isSfxEnabled,
+              onPressed: controller.toggleSfx,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AudioToggleButton extends StatelessWidget {
+  const _AudioToggleButton({
+    required this.tooltip,
+    required this.icon,
+    required this.isEnabled,
+    required this.playPressSound,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final bool isEnabled;
+  final bool playPressSound;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = isEnabled ? Colors.white : const Color(0xFFFFF4D6);
+    final foreground = isEnabled
+        ? DuoColors.textPrimary
+        : DuoColors.textSecondary;
+
+    return Tooltip(
+      message: tooltip,
+      child: SmartStepsPressEffect(
+        playSound: playPressSound,
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(44, 44),
+            fixedSize: const Size(44, 44),
+            padding: EdgeInsets.zero,
+            elevation: 0,
+            backgroundColor: background,
+            foregroundColor: foreground,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: BorderSide(
+                color: isEnabled ? DuoColors.primaryYellow : DuoColors.border,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Icon(icon, size: 23),
+        ),
+      ),
     );
   }
 }
@@ -1358,36 +1497,39 @@ class _HeaderPlanChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: 'Gói hiện tại',
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
+      child: SmartStepsPressEffect(
+        enabled: onPressed != null,
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(999),
-          onTap: onPressed,
-          child: Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 11),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.workspace_premium_rounded,
-                  color: DuoColors.darkYellow,
-                  size: 19,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  plan,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: GameColors.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: onPressed,
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: DuoColors.darkYellow,
+                    size: 20,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 5),
+                  Text(
+                    plan,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: GameColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -2197,85 +2339,87 @@ class _IslandTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = _islandAccent(island.islandId);
 
-    return Material(
-      color: DuoColors.card,
-      borderRadius: BorderRadius.circular(26),
-      child: InkWell(
-        key: ValueKey('island-${island.islandId}'),
+    return SmartStepsPressEffect(
+      child: Material(
+        color: DuoColors.card,
         borderRadius: BorderRadius.circular(26),
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 168),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.82),
-              width: 3,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1F25324B),
-                blurRadius: 18,
-                offset: Offset(0, 8),
+        child: InkWell(
+          key: ValueKey('island-${island.islandId}'),
+          borderRadius: BorderRadius.circular(26),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 168),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.82),
+                width: 3,
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: 92,
-                child: _CatalogPicture(
-                  asset: _islandImageAsset(island.islandId),
-                  imageUrl: island.imageUrl,
-                  accent: accent,
-                  icon: Icons.terrain_rounded,
-                  padding: const EdgeInsets.all(18),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1F25324B),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
                 ),
-              ),
-              const SizedBox(height: 12),
-              DuoProgressBar(
-                value: (island.lessonCount / 3).clamp(0.18, 1.0),
-                height: 12,
-                color: DuoColors.success,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      island.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 92,
+                  child: _CatalogPicture(
+                    asset: _islandImageAsset(island.islandId),
+                    imageUrl: island.imageUrl,
+                    accent: accent,
+                    icon: Icons.terrain_rounded,
+                    padding: const EdgeInsets.all(18),
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${island.lessonCount}',
-                      style: const TextStyle(
-                        color: GameColors.ink,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
+                ),
+                const SizedBox(height: 12),
+                DuoProgressBar(
+                  value: (island.lessonCount / 3).clamp(0.18, 1.0),
+                  height: 12,
+                  color: DuoColors.success,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        island.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.chevron_right_rounded, color: accent, size: 30),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${island.lessonCount}',
+                        style: const TextStyle(
+                          color: GameColors.ink,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right_rounded, color: accent, size: 30),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2385,91 +2529,96 @@ class _SituationTile extends StatelessWidget {
         ? GameColors.safe
         : _islandAccent(situation.islandId);
 
-    return Material(
-      color: isSelected
-          ? GameColors.mint.withValues(alpha: 0.74)
-          : Colors.white.withValues(alpha: 0.88),
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        key: ValueKey('situation-${situation.situationId}'),
+    return SmartStepsPressEffect(
+      enabled: !isLoading,
+      child: Material(
+        color: isSelected
+            ? GameColors.mint.withValues(alpha: 0.74)
+            : Colors.white.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(24),
-        onTap: isLoading ? null : onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 126),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isSelected
-                  ? GameColors.safe.withValues(alpha: 0.62)
-                  : Colors.white.withValues(alpha: 0.82),
-              width: 3,
-            ),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 104,
-                height: 104,
-                child: _CatalogPicture(
-                  asset: _situationImageAsset(situation),
-                  accent: accent,
-                  icon: Icons.play_arrow_rounded,
-                  padding: const EdgeInsets.all(13),
-                ),
+        child: InkWell(
+          key: ValueKey('situation-${situation.situationId}'),
+          borderRadius: BorderRadius.circular(24),
+          onTap: isLoading ? null : onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 126),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isSelected
+                    ? GameColors.safe.withValues(alpha: 0.62)
+                    : Colors.white.withValues(alpha: 0.82),
+                width: 3,
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      situation.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        isLoading ? 'Đang tải' : 'Bài ${situation.orderIndex}',
-                        maxLines: 1,
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 104,
+                  height: 104,
+                  child: _CatalogPicture(
+                    asset: _situationImageAsset(situation),
+                    accent: accent,
+                    icon: Icons.play_arrow_rounded,
+                    padding: const EdgeInsets.all(13),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        situation.title,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: GameColors.ink,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          isLoading
+                              ? 'Đang tải'
+                              : 'Bài ${situation.orderIndex}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: GameColors.ink,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              isLoading
-                  ? const SizedBox(
-                      width: 26,
-                      height: 26,
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    )
-                  : Icon(
-                      isSelected
-                          ? Icons.check_circle_rounded
-                          : Icons.chevron_right_rounded,
-                      color: isSelected ? GameColors.safe : GameColors.ink,
-                      size: 32,
-                    ),
-            ],
+                const SizedBox(width: 8),
+                isLoading
+                    ? const SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      )
+                    : Icon(
+                        isSelected
+                            ? Icons.check_circle_rounded
+                            : Icons.chevron_right_rounded,
+                        color: isSelected ? GameColors.safe : GameColors.ink,
+                        size: 32,
+                      ),
+              ],
+            ),
           ),
         ),
       ),
@@ -3421,6 +3570,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   bool _parentReadingMode = false;
   bool _hasRecordedCompletion = false;
   Timer? _rewardTimer;
+  SmartStepsAudioController? _audioController;
 
   LessonChoice? get _selectedChoice {
     for (final choice in widget.lesson.choices) {
@@ -3448,8 +3598,22 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextAudioController = SmartStepsAudioScope.maybeOf(context);
+    if (_audioController == nextAudioController) {
+      return;
+    }
+
+    _audioController?.restoreMusic();
+    _audioController = nextAudioController;
+    _audioController?.duckMusic();
+  }
+
+  @override
   void dispose() {
     _rewardTimer?.cancel();
+    _audioController?.restoreMusic();
     unawaited(_restoreSystemViewingMode());
     super.dispose();
   }
@@ -3544,6 +3708,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
       _hasRecordedCompletion = true;
       unawaited(_recordLessonCompletion());
     }
+    _audioController?.playSuccess();
     setState(() {
       _phase = LessonPhase.rewardBurst;
     });
@@ -4094,20 +4259,25 @@ class _FullscreenClipControls extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    unawaited(onSkip());
-                  },
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.black.withValues(alpha: 0.52),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                SmartStepsPressEffect(
+                  child: TextButton(
+                    onPressed: () {
+                      unawaited(onSkip());
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.black.withValues(alpha: 0.52),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 11,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                    child: Text(copy.skipLabel),
                   ),
-                  child: Text(copy.skipLabel),
                 ),
               ],
             ),
@@ -4361,76 +4531,80 @@ class _HazardSpotState extends State<_HazardSpot>
       button: true,
       enabled: widget.isActive,
       label: widget.hint,
-      child: GestureDetector(
-        key: const ValueKey('hazard-spot'),
-        onTap: widget.isActive ? widget.onTap : null,
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            final pulse = 1 + math.sin(_controller.value * math.pi * 2) * 0.06;
-            final lift = math.sin(_controller.value * math.pi * 2) * -5;
+      child: SmartStepsPressEffect(
+        enabled: widget.isActive,
+        child: GestureDetector(
+          key: const ValueKey('hazard-spot'),
+          onTap: widget.isActive ? widget.onTap : null,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final pulse =
+                  1 + math.sin(_controller.value * math.pi * 2) * 0.06;
+              final lift = math.sin(_controller.value * math.pi * 2) * -5;
 
-            return Transform.translate(
-              offset: Offset(0, widget.isActive ? lift : 0),
-              child: Transform.scale(
-                scale: widget.isActive ? pulse : 1,
-                child: child,
-              ),
-            );
-          },
-          child: SizedBox(
-            width: 118,
-            height: 132,
-            child: Stack(
-              alignment: Alignment.bottomCenter,
-              clipBehavior: Clip.none,
-              children: [
-                if (widget.isActive)
+              return Transform.translate(
+                offset: Offset(0, widget.isActive ? lift : 0),
+                child: Transform.scale(
+                  scale: widget.isActive ? pulse : 1,
+                  child: child,
+                ),
+              );
+            },
+            child: SizedBox(
+              width: 118,
+              height: 132,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                clipBehavior: Clip.none,
+                children: [
+                  if (widget.isActive)
+                    Positioned(
+                      bottom: 82,
+                      child: _HintBubble(label: widget.hint),
+                    ),
                   Positioned(
-                    bottom: 82,
-                    child: _HintBubble(label: widget.hint),
-                  ),
-                Positioned(
-                  bottom: 0,
-                  child: Container(
-                    width: 82,
-                    height: 82,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: GameColors.banana.withValues(alpha: 0.26),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.72),
-                        width: 4,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: GameColors.banana.withValues(alpha: 0.32),
-                          blurRadius: widget.isActive ? 28 : 12,
-                          spreadRadius: widget.isActive ? 8 : 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 82,
+                      height: 82,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: GameColors.banana.withValues(alpha: 0.26),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          width: 4,
                         ),
-                      ],
+                        boxShadow: [
+                          BoxShadow(
+                            color: GameColors.banana.withValues(alpha: 0.32),
+                            blurRadius: widget.isActive ? 28 : 12,
+                            spreadRadius: widget.isActive ? 8 : 0,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  child: Image.asset(
-                    LessonAssets.ball,
-                    width: 65,
-                    fit: BoxFit.contain,
+                  Positioned(
+                    bottom: 8,
+                    child: Image.asset(
+                      LessonAssets.ball,
+                      width: 65,
+                      fit: BoxFit.contain,
+                    ),
                   ),
-                ),
-                const Positioned(
-                  right: 18,
-                  bottom: 54,
-                  child: _Sparkle(size: 11),
-                ),
-                const Positioned(
-                  left: 18,
-                  bottom: 22,
-                  child: _Sparkle(size: 8),
-                ),
-              ],
+                  const Positioned(
+                    right: 18,
+                    bottom: 54,
+                    child: _Sparkle(size: 11),
+                  ),
+                  const Positioned(
+                    left: 18,
+                    bottom: 22,
+                    child: _Sparkle(size: 8),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -5072,160 +5246,162 @@ class _ChoiceCard extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           child: Material(
             color: Colors.transparent,
-            child: InkWell(
-              onTap: onSelect,
-              borderRadius: BorderRadius.circular(28),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-                constraints: BoxConstraints(minHeight: minCardHeight),
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.84),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: isNarrating
-                        ? GameColors.banana
-                        : isSelected
-                        ? accent
-                        : Colors.white.withValues(alpha: 0.76),
-                    width: 4,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(
-                        alpha: isNarrating ? 0.22 : 0.12,
-                      ),
-                      blurRadius: isNarrating ? 30 : 18,
-                      offset: const Offset(0, 12),
+            child: SmartStepsPressEffect(
+              child: InkWell(
+                onTap: onSelect,
+                borderRadius: BorderRadius.circular(28),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  constraints: BoxConstraints(minHeight: minCardHeight),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.84),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: isNarrating
+                          ? GameColors.banana
+                          : isSelected
+                          ? accent
+                          : Colors.white.withValues(alpha: 0.76),
+                      width: 4,
                     ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Container(
-                          height: imageAreaHeight,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.78),
-                                accent.withValues(
-                                  alpha: isDanger ? 0.15 : 0.20,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(
+                          alpha: isNarrating ? 0.22 : 0.12,
+                        ),
+                        blurRadius: isNarrating ? 30 : 18,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Container(
+                            height: imageAreaHeight,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.78),
+                                  accent.withValues(
+                                    alpha: isDanger ? 0.15 : 0.20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.bottomCenter,
+                              children: [
+                                Positioned(
+                                  bottom: 11,
+                                  child: Container(
+                                    width: 150,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: GameColors.ink.withValues(
+                                        alpha: 0.10,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 2,
+                                  child: AnimatedSlide(
+                                    offset: isNarrating
+                                        ? const Offset(0, -0.06)
+                                        : Offset.zero,
+                                    duration: const Duration(milliseconds: 220),
+                                    curve: Curves.easeOutBack,
+                                    child: Image.asset(
+                                      choice.imageAsset,
+                                      height: imageHeight,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          child: Stack(
-                            alignment: Alignment.bottomCenter,
-                            children: [
-                              Positioned(
-                                bottom: 11,
-                                child: Container(
-                                  width: 150,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: GameColors.ink.withValues(
-                                      alpha: 0.10,
-                                    ),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                bottom: 2,
-                                child: AnimatedSlide(
-                                  offset: isNarrating
-                                      ? const Offset(0, -0.06)
-                                      : Offset.zero,
-                                  duration: const Duration(milliseconds: 220),
-                                  curve: Curves.easeOutBack,
-                                  child: Image.asset(
-                                    choice.imageAsset,
-                                    height: imageHeight,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 13, 14, 15),
-                          child: Column(
-                            children: [
-                              Text(
-                                choice.label,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: GameColors.ink,
-                                  fontSize: isCompact ? 18 : 21,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.05,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: helperBackground,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  choice.helper,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 13, 14, 15),
+                            child: Column(
+                              children: [
+                                Text(
+                                  choice.label,
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: isDanger
-                                        ? const Color(0xFF543104)
-                                        : const Color(0xFF214532),
+                                    color: GameColors.ink,
+                                    fontSize: isCompact ? 18 : 21,
                                     fontWeight: FontWeight.w900,
-                                    height: 1,
+                                    height: 1.05,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    Positioned(
-                      right: 10,
-                      top: 10,
-                      child: _VoiceButton(
-                        label: 'Nghe lựa chọn ${choice.label}',
-                        isActive: isNarrating,
-                        onPressed: onVoiceFocus,
-                      ),
-                    ),
-                    if (isNarrating)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: GameColors.banana.withValues(
-                                    alpha: 0.7,
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 7,
                                   ),
-                                  width: 3,
+                                  decoration: BoxDecoration(
+                                    color: helperBackground,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    choice.helper,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: isDanger
+                                          ? const Color(0xFF543104)
+                                          : const Color(0xFF214532),
+                                      fontWeight: FontWeight.w900,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      Positioned(
+                        right: 10,
+                        top: 10,
+                        child: _VoiceButton(
+                          label: 'Nghe lựa chọn ${choice.label}',
+                          isActive: isNarrating,
+                          onPressed: onVoiceFocus,
+                        ),
+                      ),
+                      if (isNarrating)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: GameColors.banana.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                    width: 3,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -5614,24 +5790,27 @@ class _PillButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final background = color ?? Colors.white.withValues(alpha: 0.78);
 
-    return FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 22),
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        backgroundColor: background,
-        foregroundColor: GameColors.ink,
-        disabledBackgroundColor: background.withValues(alpha: 0.58),
-        disabledForegroundColor: GameColors.ink.withValues(alpha: 0.48),
-        elevation: 0,
-        textStyle: const TextStyle(fontWeight: FontWeight.w900),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-          side: BorderSide(
-            color: Colors.white.withValues(alpha: 0.82),
-            width: 3,
+    return SmartStepsPressEffect(
+      enabled: onPressed != null,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 24),
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          backgroundColor: background,
+          foregroundColor: GameColors.ink,
+          disabledBackgroundColor: background.withValues(alpha: 0.58),
+          disabledForegroundColor: GameColors.ink.withValues(alpha: 0.48),
+          elevation: 0,
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.82),
+              width: 3,
+            ),
           ),
         ),
       ),
@@ -5654,24 +5833,26 @@ class _CircleIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: label,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          fixedSize: const Size(48, 48),
-          padding: EdgeInsets.zero,
-          backgroundColor: Colors.white.withValues(alpha: 0.82),
-          foregroundColor: GameColors.ink,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: BorderSide(
-              color: Colors.white.withValues(alpha: 0.82),
-              width: 3,
+      child: SmartStepsPressEffect(
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(52, 52),
+            fixedSize: const Size(52, 52),
+            padding: EdgeInsets.zero,
+            backgroundColor: Colors.white.withValues(alpha: 0.82),
+            foregroundColor: GameColors.ink,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.82),
+                width: 3,
+              ),
             ),
           ),
+          child: Icon(icon, size: 26),
         ),
-        child: Icon(icon, size: 24),
       ),
     );
   }
@@ -5696,26 +5877,28 @@ class _VoiceButton extends StatelessWidget {
         scale: isActive ? 1.08 : 1,
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutBack,
-        child: FilledButton(
-          onPressed: onPressed,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(50, 50),
-            fixedSize: const Size(50, 50),
-            padding: EdgeInsets.zero,
-            backgroundColor: isActive
-                ? GameColors.banana
-                : GameColors.banana.withValues(alpha: 0.92),
-            foregroundColor: GameColors.ink,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
-              side: BorderSide(
-                color: Colors.white.withValues(alpha: 0.88),
-                width: 4,
+        child: SmartStepsPressEffect(
+          child: FilledButton(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(52, 52),
+              fixedSize: const Size(52, 52),
+              padding: EdgeInsets.zero,
+              backgroundColor: isActive
+                  ? GameColors.banana
+                  : GameColors.banana.withValues(alpha: 0.92),
+              foregroundColor: GameColors.ink,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  width: 4,
+                ),
               ),
             ),
+            child: const Icon(Icons.volume_up_rounded, size: 27),
           ),
-          child: const Icon(Icons.volume_up_rounded, size: 25),
         ),
       ),
     );
@@ -6016,10 +6199,7 @@ class _ParentalGateDialogState extends State<_ParentalGateDialog> {
       title: const Text(
         'Dành cho phụ huynh',
         textAlign: TextAlign.center,
-        style: TextStyle(
-            fontWeight: FontWeight.w900,
-            color: Color(0xFFFF7A1A)
-        ),
+        style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFFF7A1A)),
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -6055,14 +6235,20 @@ class _ParentalGateDialogState extends State<_ParentalGateDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Hủy', style: TextStyle(color: Colors.grey, fontSize: 16)),
+          child: const Text(
+            'Hủy',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
         ),
         FilledButton(
           onPressed: _checkAnswer,
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFFFFE99C),
             foregroundColor: Colors.black,
-            textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
           ),
           child: const Text('Xác nhận'),
         ),

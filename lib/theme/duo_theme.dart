@@ -36,25 +36,25 @@ class DuoTheme {
       textTheme: base.textTheme.copyWith(
         headlineSmall: const TextStyle(
           color: DuoColors.textPrimary,
-          fontSize: 26,
+          fontSize: 30,
           fontWeight: FontWeight.w900,
           height: 1.05,
         ),
         titleLarge: const TextStyle(
           color: DuoColors.textPrimary,
-          fontSize: 22,
+          fontSize: 25,
           fontWeight: FontWeight.w900,
           height: 1.08,
         ),
         titleMedium: const TextStyle(
           color: DuoColors.textPrimary,
-          fontSize: 17,
+          fontSize: 19,
           fontWeight: FontWeight.w900,
           height: 1.1,
         ),
         bodyMedium: const TextStyle(
           color: DuoColors.textSecondary,
-          fontSize: 15,
+          fontSize: 17,
           fontWeight: FontWeight.w700,
           height: 1.35,
         ),
@@ -67,7 +67,7 @@ class DuoTheme {
           disabledBackgroundColor: DuoColors.lockedGray,
           disabledForegroundColor: DuoColors.textSecondary,
           elevation: 0,
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(999),
           ),

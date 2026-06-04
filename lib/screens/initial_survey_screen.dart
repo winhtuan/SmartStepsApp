@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../models/child_profile.dart';
 import '../services/local_profile_storage.dart';
+import '../widgets/smartsteps_press_effect.dart';
 
 class InitialSurveyScreen extends StatefulWidget {
   const InitialSurveyScreen({
@@ -191,40 +192,43 @@ class _InitialSurveyScreenState extends State<InitialSurveyScreen> {
                 const SizedBox(height: 22),
                 SizedBox(
                   height: 56,
-                  child: FilledButton(
-                    key: const ValueKey('initial-survey-submit-button'),
-                    onPressed: _canSubmit
-                        ? () {
-                            unawaited(_submit());
-                          }
-                        : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF8DBB43),
-                      disabledBackgroundColor: const Color(
-                        0xFF8DBB43,
-                      ).withValues(alpha: 0.38),
-                      foregroundColor: Colors.white,
-                      disabledForegroundColor: Colors.white.withValues(
-                        alpha: 0.72,
+                  child: SmartStepsPressEffect(
+                    enabled: _canSubmit,
+                    child: FilledButton(
+                      key: const ValueKey('initial-survey-submit-button'),
+                      onPressed: _canSubmit
+                          ? () {
+                              unawaited(_submit());
+                            }
+                          : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF8DBB43),
+                        disabledBackgroundColor: const Color(
+                          0xFF8DBB43,
+                        ).withValues(alpha: 0.38),
+                        foregroundColor: Colors.white,
+                        disabledForegroundColor: Colors.white.withValues(
+                          alpha: 0.72,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
                       ),
-                      textStyle: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Bắt đầu'),
                     ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Bắt đầu'),
                   ),
                 ),
               ],
@@ -435,10 +439,7 @@ class _GenderMenu extends StatelessWidget {
 }
 
 class _GoalSection extends StatelessWidget {
-  const _GoalSection({
-    required this.selectedGoals,
-    required this.onChanged,
-  });
+  const _GoalSection({required this.selectedGoals, required this.onChanged});
 
   final Set<int> selectedGoals;
   final void Function(int index, bool value) onChanged;
@@ -495,38 +496,40 @@ class _GoalRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () => onChanged(!isSelected),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 40),
-        padding: const EdgeInsets.fromLTRB(18, 4, 10, 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFEFA8),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w500,
-                  height: 1.1,
+    return SmartStepsPressEffect(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => onChanged(!isSelected),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 42),
+          padding: const EdgeInsets.fromLTRB(18, 5, 10, 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFEFA8),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    height: 1.1,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            _SurveyCheckbox(
-              key: ValueKey('goal-checkbox-$index'),
-              value: isSelected,
-              onChanged: onChanged,
-            ),
-          ],
+              const SizedBox(width: 8),
+              _SurveyCheckbox(
+                key: ValueKey('goal-checkbox-$index'),
+                value: isSelected,
+                onChanged: onChanged,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -534,10 +537,7 @@ class _GoalRow extends StatelessWidget {
 }
 
 class _TermsSection extends StatelessWidget {
-  const _TermsSection({
-    required this.acceptedTerms,
-    required this.onChanged,
-  });
+  const _TermsSection({required this.acceptedTerms, required this.onChanged});
 
   final bool acceptedTerms;
   final ValueChanged<bool> onChanged;

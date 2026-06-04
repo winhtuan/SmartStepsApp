@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/duo_theme.dart';
+import 'smartsteps_press_effect.dart';
 
 class DuoPrimaryButton extends StatelessWidget {
   const DuoPrimaryButton({
@@ -36,18 +37,24 @@ class DuoPrimaryButton extends StatelessWidget {
             ],
           );
 
-    return FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: backgroundColor,
-        disabledBackgroundColor: DuoColors.lockedGray,
-        foregroundColor: DuoColors.textPrimary,
-        disabledForegroundColor: DuoColors.textSecondary,
-        minimumSize: const Size(0, 54),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    return SmartStepsPressEffect(
+      enabled: onPressed != null,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: backgroundColor,
+          disabledBackgroundColor: DuoColors.lockedGray,
+          foregroundColor: DuoColors.textPrimary,
+          disabledForegroundColor: DuoColors.textSecondary,
+          minimumSize: const Size(0, 58),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        child: child,
       ),
-      child: child,
     );
   }
 }
@@ -176,9 +183,8 @@ class DuoAchievementCard extends StatelessWidget {
       return card;
     }
 
-    return GestureDetector(
-      onTap: onTap,
-      child: card,
+    return SmartStepsPressEffect(
+      child: GestureDetector(onTap: onTap, child: card),
     );
   }
 }

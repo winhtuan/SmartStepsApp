@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/duo_theme.dart';
+import '../widgets/smartsteps_press_effect.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatelessWidget {
@@ -95,56 +96,58 @@ class LoginScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    PageRouteBuilder<void>(
-                                      pageBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                          ) => RegisterScreen(
-                                            onRegister: onLogin,
-                                          ),
-                                      transitionsBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                            child,
-                                          ) {
-                                            final curvedAnimation =
-                                                CurvedAnimation(
-                                                  parent: animation,
-                                                  curve: Curves.easeOutCubic,
-                                                  reverseCurve:
-                                                      Curves.easeInCubic,
-                                                );
+                              SmartStepsPressEffect(
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      PageRouteBuilder<void>(
+                                        pageBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                            ) => RegisterScreen(
+                                              onRegister: onLogin,
+                                            ),
+                                        transitionsBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                              child,
+                                            ) {
+                                              final curvedAnimation =
+                                                  CurvedAnimation(
+                                                    parent: animation,
+                                                    curve: Curves.easeOutCubic,
+                                                    reverseCurve:
+                                                        Curves.easeInCubic,
+                                                  );
 
-                                            return SlideTransition(
-                                              position: Tween<Offset>(
-                                                begin: const Offset(0, 1),
-                                                end: Offset.zero,
-                                              ).animate(curvedAnimation),
-                                              child: child,
-                                            );
-                                          },
+                                              return SlideTransition(
+                                                position: Tween<Offset>(
+                                                  begin: const Offset(0, 1),
+                                                  end: Offset.zero,
+                                                ).animate(curvedAnimation),
+                                                child: child,
+                                              );
+                                            },
+                                      ),
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(64, 34),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'Đăng ký',
+                                    style: TextStyle(
+                                      color: Color(0xFFFF3F3F),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                  );
-                                },
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: const Size(64, 32),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text(
-                                  'Đăng ký',
-                                  style: TextStyle(
-                                    color: Color(0xFFFF3F3F),
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
@@ -157,20 +160,23 @@ class LoginScreen extends StatelessWidget {
                           const SizedBox(height: 11),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () =>
-                                  _showFeatureInDevelopment(context),
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 30),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: const Text(
-                                'Quên mật khẩu',
-                                style: TextStyle(
-                                  color: Color(0xFFBA1A1A),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w400,
+                            child: SmartStepsPressEffect(
+                              child: TextButton(
+                                onPressed: () =>
+                                    _showFeatureInDevelopment(context),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(0, 32),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Quên mật khẩu',
+                                  style: TextStyle(
+                                    color: Color(0xFFBA1A1A),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
                             ),
@@ -179,25 +185,27 @@ class LoginScreen extends StatelessWidget {
                           SizedBox(
                             width: double.infinity,
                             height: 50,
-                            child: FilledButton(
-                              key: const ValueKey('login-submit-button'),
-                              onPressed: () {
-                                onLogin?.call(context);
-                              },
-                              style: FilledButton.styleFrom(
-                                elevation: 0,
-                                backgroundColor: DuoColors.primaryYellow,
-                                foregroundColor: DuoColors.textPrimary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(28),
+                            child: SmartStepsPressEffect(
+                              child: FilledButton(
+                                key: const ValueKey('login-submit-button'),
+                                onPressed: () {
+                                  onLogin?.call(context);
+                                },
+                                style: FilledButton.styleFrom(
+                                  elevation: 0,
+                                  backgroundColor: DuoColors.primaryYellow,
+                                  foregroundColor: DuoColors.textPrimary,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(28),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                textStyle: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w400,
-                                ),
+                                child: const Text('Đăng nhập'),
                               ),
-                              child: const Text('Đăng nhập'),
                             ),
                           ),
                           const SizedBox(height: 32),

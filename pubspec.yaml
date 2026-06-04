@@ -67,6 +67,7 @@ flutter:
     - assets/images/logo/
     - assets/images/island/
     - assets/images/mascot/
+    - assets/audio/
     - assets/videos/
     - assets/videos/Crossroad/
     - assets/videos/Safety_smallitems/
