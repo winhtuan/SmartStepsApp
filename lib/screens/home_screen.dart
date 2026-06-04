@@ -3651,6 +3651,10 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     });
   }
 
+  void _exitLesson() {
+    Navigator.of(context).maybePop();
+  }
+
   void _completeVideo() {
     setState(() {
       switch (_phase) {
@@ -3765,9 +3769,22 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   @override
   Widget build(BuildContext context) {
     final lesson = widget.lesson;
+    final isFlashcardPhase = _phase == LessonPhase.inspectObject;
 
     if (_isVideoPhase) {
-      return Scaffold(backgroundColor: Colors.black, body: _buildStage(lesson));
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            Positioned.fill(child: _buildStage(lesson)),
+            Positioned(
+              left: 14,
+              top: 14,
+              child: SafeArea(child: _LessonExitButton(onPressed: _exitLesson)),
+            ),
+          ],
+        ),
+      );
     }
 
     return Scaffold(
@@ -3785,25 +3802,35 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _GameHeader(
-                  lesson: lesson,
-                  hasReward: _hasReward,
-                  isParentReadingMode: _parentReadingMode,
-                  onToggleReadingMode: _toggleReadingMode,
-                  onRestart: _restartLesson,
-                ),
-                const SizedBox(height: 10),
+                if (!isFlashcardPhase) ...[
+                  _GameHeader(
+                    lesson: lesson,
+                    hasReward: _hasReward,
+                    isParentReadingMode: _parentReadingMode,
+                    onToggleReadingMode: _toggleReadingMode,
+                    onRestart: _restartLesson,
+                    onExit: _exitLesson,
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 Expanded(
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Positioned.fill(child: _buildStage(lesson)),
+                      if (!isFlashcardPhase)
+                        Positioned.fill(child: _buildStage(lesson)),
                       if (_phase == LessonPhase.inspectObject)
                         _QuestionOverlay(
                           lesson: lesson,
                           selectedChoice: _selectedChoice,
                           isParentReadingMode: _parentReadingMode,
                           onSelectChoice: _selectChoice,
+                        ),
+                      if (isFlashcardPhase)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          child: _LessonExitButton(onPressed: _exitLesson),
                         ),
                       if (_phase == LessonPhase.rewardBurst)
                         const _RewardBurstOverlay(),
@@ -3866,6 +3893,40 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 }
 
+class _LessonExitButton extends StatelessWidget {
+  const _LessonExitButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Thoát bài học',
+      child: SmartStepsPressEffect(
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            fixedSize: const Size(48, 48),
+            padding: EdgeInsets.zero,
+            backgroundColor: Colors.white.withValues(alpha: 0.92),
+            foregroundColor: GameColors.ink,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 3,
+              ),
+            ),
+          ),
+          child: const Icon(Icons.close_rounded, size: 26),
+        ),
+      ),
+    );
+  }
+}
+
 class _GameHeader extends StatelessWidget {
   const _GameHeader({
     required this.lesson,
@@ -3873,6 +3934,7 @@ class _GameHeader extends StatelessWidget {
     required this.isParentReadingMode,
     required this.onToggleReadingMode,
     required this.onRestart,
+    required this.onExit,
   });
 
   final SafetyLesson lesson;
@@ -3880,6 +3942,7 @@ class _GameHeader extends StatelessWidget {
   final bool isParentReadingMode;
   final VoidCallback onToggleReadingMode;
   final VoidCallback onRestart;
+  final VoidCallback onExit;
 
   @override
   Widget build(BuildContext context) {
@@ -3919,6 +3982,12 @@ class _GameHeader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
+                _CircleIconButton(
+                  label: 'Thoát bài học',
+                  icon: Icons.close_rounded,
+                  onPressed: onExit,
+                ),
+                const SizedBox(width: 8),
                 _CircleIconButton(
                   label: 'Chơi lại màn',
                   icon: Icons.restart_alt_rounded,
@@ -5014,26 +5083,30 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
             opacity: 1,
             duration: const Duration(milliseconds: 200),
             child: Container(
-              padding: EdgeInsets.all(isLandscape ? 10 : 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161C2C).withValues(alpha: 0.52),
+              padding: EdgeInsets.fromLTRB(
+                isLandscape ? 68 : 16,
+                isLandscape ? 8 : 62,
+                isLandscape ? 16 : 16,
+                isLandscape ? 12 : 16,
               ),
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(isLandscape ? 30 : 34),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: _QuestionPanel(
-                      lesson: widget.lesson,
-                      selectedChoice: widget.selectedChoice,
-                      activeNarrationId: _activeNarrationId,
-                      isLandscape: isLandscape,
-                      onVoiceFocus: _focusNarration,
-                      onSelectChoice: widget.onSelectChoice,
-                    ),
-                  ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFFFFF2B7),
+                    GameColors.cream,
+                    GameColors.sky.withValues(alpha: 0.82),
+                  ],
                 ),
+              ),
+              child: _QuestionPanel(
+                lesson: widget.lesson,
+                selectedChoice: widget.selectedChoice,
+                activeNarrationId: _activeNarrationId,
+                isLandscape: isLandscape,
+                onVoiceFocus: _focusNarration,
+                onSelectChoice: widget.onSelectChoice,
               ),
             ),
           );
@@ -5062,13 +5135,13 @@ class _QuestionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final panelRadius = isLandscape ? 30.0 : 34.0;
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compactCards = isLandscape || constraints.maxWidth < 430;
+        final useHorizontalChoices = constraints.maxWidth >= 620;
+        final compactCards =
+            constraints.maxHeight < 430 || constraints.maxWidth < 430;
         final choices = lesson.choices.map((choice) {
-          return _ChoiceCard(
+          return _KidChoiceCard(
             choice: choice,
             isSelected: selectedChoice?.id == choice.id,
             isNarrating: activeNarrationId == choice.id,
@@ -5078,7 +5151,7 @@ class _QuestionPanel extends StatelessWidget {
           );
         }).toList();
 
-        final prompt = _QuestionPrompt(
+        final prompt = _SimpleQuestionPrompt(
           lesson: lesson,
           isActive: activeNarrationId == 'question',
           isCompact: compactCards,
@@ -5086,72 +5159,69 @@ class _QuestionPanel extends StatelessWidget {
               onVoiceFocus('question', lesson.questionVoice.asset),
         );
 
-        final body = isLandscape
+        final choiceArea = useHorizontalChoices
             ? Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    width: math.min(310.0, constraints.maxWidth * 0.34),
-                    child: prompt,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: choices.first),
-                        const SizedBox(width: 14),
-                        Expanded(child: choices.last),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: choices.first),
+                  const SizedBox(width: 16),
+                  Expanded(child: choices.last),
                 ],
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  prompt,
+                  Expanded(child: choices.first),
                   const SizedBox(height: 14),
-                  choices.first,
-                  const SizedBox(height: 14),
-                  choices.last,
+                  Expanded(child: choices.last),
                 ],
               );
 
         return Container(
           width: double.infinity,
-          constraints: BoxConstraints(maxHeight: isLandscape ? 360 : 640),
+          height: double.infinity,
           padding: EdgeInsets.fromLTRB(
-            isLandscape ? 14 : 18,
-            isLandscape ? 14 : 18,
-            isLandscape ? 14 : 18,
-            isLandscape ? 14 : 20,
+            isLandscape ? 16 : 18,
+            isLandscape ? 12 : 16,
+            isLandscape ? 16 : 18,
+            isLandscape ? 16 : 18,
           ),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(panelRadius),
+            color: Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(32),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.84),
-              width: 5,
+              width: 4,
             ),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x4D0F1828),
-                blurRadius: 50,
-                offset: Offset(0, 24),
+                color: Color(0x2625324B),
+                blurRadius: 28,
+                offset: Offset(0, 14),
               ),
             ],
           ),
-          child: SingleChildScrollView(child: body),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: prompt,
+                ),
+              ),
+              SizedBox(height: isLandscape ? 14 : 18),
+              Expanded(child: choiceArea),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _QuestionPrompt extends StatelessWidget {
-  const _QuestionPrompt({
+class _SimpleQuestionPrompt extends StatelessWidget {
+  const _SimpleQuestionPrompt({
     required this.lesson,
     required this.isActive,
     required this.isCompact,
@@ -5169,46 +5239,59 @@ class _QuestionPrompt extends StatelessWidget {
       scale: isActive ? 1.02 : 1,
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutBack,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Image.asset(LessonAssets.mascotSpeaking, width: isCompact ? 54 : 74),
-          SizedBox(width: isCompact ? 9 : 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _DockLabel('Nghe rồi chọn'),
-                const SizedBox(height: 4),
-                Text(
-                  lesson.inspectQuestion,
-                  style: isCompact
-                      ? const TextStyle(
-                          color: GameColors.ink,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          height: 1.08,
-                        )
-                      : Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          isCompact ? 16 : 22,
+          isCompact ? 12 : 16,
+          isCompact ? 12 : 16,
+          isCompact ? 12 : 16,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: isActive ? GameColors.banana : Colors.white,
+            width: 4,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1F25324B),
+              blurRadius: 18,
+              offset: Offset(0, 8),
             ),
-          ),
-          const SizedBox(width: 8),
-          _VoiceButton(
-            label: 'Nghe câu hỏi',
-            isActive: isActive,
-            onPressed: onVoiceFocus,
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                lesson.inspectQuestion,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: GameColors.ink,
+                  fontSize: isCompact ? 23 : 29,
+                  fontWeight: FontWeight.w900,
+                  height: 1.08,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            _VoiceButton(
+              label: 'Nghe câu hỏi',
+              isActive: isActive,
+              onPressed: onVoiceFocus,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ChoiceCard extends StatelessWidget {
-  const _ChoiceCard({
+class _KidChoiceCard extends StatelessWidget {
+  const _KidChoiceCard({
     required this.choice,
     required this.isSelected,
     required this.isNarrating,
@@ -5228,180 +5311,89 @@ class _ChoiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDanger = choice.tone == ChoiceTone.danger;
     final accent = isDanger ? GameColors.danger : GameColors.safe;
-    final helperBackground = accent.withValues(alpha: isDanger ? 0.34 : 0.42);
-    final imageAreaHeight = isCompact ? 112.0 : 150.0;
-    final imageHeight = isCompact ? 104.0 : 140.0;
-    final minCardHeight = isCompact ? 192.0 : 238.0;
+    final imageHeight = isCompact ? 108.0 : 142.0;
 
     return Semantics(
       button: true,
       selected: isSelected,
       label: choice.accessibilityLabel,
       child: AnimatedScale(
-        scale: isNarrating ? 1.035 : 1,
+        scale: isNarrating ? 1.04 : 1,
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutBack,
-        child: AnimatedOpacity(
-          opacity: activeCardOpacity(isNarrating),
-          duration: const Duration(milliseconds: 180),
-          child: Material(
-            color: Colors.transparent,
-            child: SmartStepsPressEffect(
-              child: InkWell(
-                onTap: onSelect,
-                borderRadius: BorderRadius.circular(28),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeOutCubic,
-                  constraints: BoxConstraints(minHeight: minCardHeight),
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.84),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: isNarrating
-                          ? GameColors.banana
-                          : isSelected
-                          ? accent
-                          : Colors.white.withValues(alpha: 0.76),
-                      width: 4,
+        child: Material(
+          color: Colors.transparent,
+          child: SmartStepsPressEffect(
+            child: InkWell(
+              onTap: onSelect,
+              borderRadius: BorderRadius.circular(30),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.fromLTRB(
+                  isCompact ? 12 : 18,
+                  isCompact ? 10 : 14,
+                  isCompact ? 12 : 18,
+                  isCompact ? 12 : 18,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: isNarrating
+                        ? GameColors.banana
+                        : isSelected
+                        ? accent
+                        : Colors.white,
+                    width: 5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.16),
+                      blurRadius: isNarrating ? 30 : 18,
+                      offset: const Offset(0, 12),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withValues(
-                          alpha: isNarrating ? 0.22 : 0.12,
-                        ),
-                        blurRadius: isNarrating ? 30 : 18,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Container(
-                            height: imageAreaHeight,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.78),
-                                  accent.withValues(
-                                    alpha: isDanger ? 0.15 : 0.20,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            child: Stack(
-                              alignment: Alignment.bottomCenter,
-                              children: [
-                                Positioned(
-                                  bottom: 11,
-                                  child: Container(
-                                    width: 150,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: GameColors.ink.withValues(
-                                        alpha: 0.10,
-                                      ),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: 2,
-                                  child: AnimatedSlide(
-                                    offset: isNarrating
-                                        ? const Offset(0, -0.06)
-                                        : Offset.zero,
-                                    duration: const Duration(milliseconds: 220),
-                                    curve: Curves.easeOutBack,
-                                    child: Image.asset(
-                                      choice.imageAsset,
-                                      height: imageHeight,
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 13, 14, 15),
-                            child: Column(
-                              children: [
-                                Text(
-                                  choice.label,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: GameColors.ink,
-                                    fontSize: isCompact ? 18 : 21,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1.05,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 7,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: helperBackground,
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    choice.helper,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: isDanger
-                                          ? const Color(0xFF543104)
-                                          : const Color(0xFF214532),
-                                      fontWeight: FontWeight.w900,
-                                      height: 1,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      Positioned(
-                        right: 10,
-                        top: 10,
-                        child: _VoiceButton(
-                          label: 'Nghe lựa chọn ${choice.label}',
-                          isActive: isNarrating,
-                          onPressed: onVoiceFocus,
-                        ),
-                      ),
-                      if (isNarrating)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: GameColors.banana.withValues(
-                                      alpha: 0.7,
-                                    ),
-                                    width: 3,
-                                  ),
-                                ),
-                              ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Center(
+                            child: Image.asset(
+                              choice.imageAsset,
+                              height: imageHeight,
+                              fit: BoxFit.contain,
                             ),
                           ),
                         ),
-                    ],
-                  ),
+                        const SizedBox(height: 10),
+                        Text(
+                          choice.label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: GameColors.ink,
+                            fontSize: isCompact ? 20 : 25,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: _VoiceButton(
+                        label: 'Nghe lựa chọn ${choice.label}',
+                        isActive: isNarrating,
+                        onPressed: onVoiceFocus,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -5410,8 +5402,6 @@ class _ChoiceCard extends StatelessWidget {
       ),
     );
   }
-
-  double activeCardOpacity(bool isNarrating) => isNarrating ? 1 : 0.98;
 }
 
 class _ResultPanel extends StatelessWidget {
