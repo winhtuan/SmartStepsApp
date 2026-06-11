@@ -3140,6 +3140,9 @@ enum LessonPhase {
   parent,
 }
 
+const _celebrationDuration = Duration(milliseconds: 5200);
+const _rewardBurstDuration = Duration(milliseconds: 1250);
+
 enum ChoiceTone { safe, danger }
 
 class GameColors {
@@ -3343,9 +3346,10 @@ SafetyLesson _lessonFromSituation(SituationDetail situation) {
       actionLabel: 'Xem kết quả sai',
       skipLabel: 'Bỏ qua clip',
     ),
-    wrongTitle: 'Khoan đã bé ơi!',
+    wrongTitle: 'Chưa an toàn!',
     wrongExplanation:
-        flashcard?.wrongFeedback ?? _shortCopy(wrongStep?.content) ?? '',
+        _kidWarningCopy(flashcard?.wrongFeedback ?? wrongStep?.content) ??
+        'Dừng lại. Chọn cách an toàn hơn.',
     correctTitle: 'Con làm đúng rồi!',
     correctExplanation:
         flashcard?.correctFeedback ?? _shortCopy(correctStep?.content) ?? '',
@@ -3357,12 +3361,14 @@ SafetyLesson _lessonFromSituation(SituationDetail situation) {
         id: correctAnswer == 'A' ? correctChoiceId : 'option-a',
         label: flashcard?.optionA ?? 'Lựa chọn A',
         voiceUrl: flashcard?.optionAVoiceUrl,
+        imageAsset: flashcard?.optionAImageUrl,
         isCorrect: correctAnswer == 'A',
       ),
       _choiceFromFlashcard(
         id: correctAnswer == 'B' ? correctChoiceId : 'option-b',
         label: flashcard?.optionB ?? 'Lựa chọn B',
         voiceUrl: flashcard?.optionBVoiceUrl,
+        imageAsset: flashcard?.optionBImageUrl,
         isCorrect: correctAnswer == 'B',
       ),
     ],
@@ -3409,6 +3415,7 @@ LessonChoice _choiceFromFlashcard({
   required String id,
   required String label,
   required String? voiceUrl,
+  required String? imageAsset,
   required bool isCorrect,
 }) {
   return LessonChoice(
@@ -3416,7 +3423,9 @@ LessonChoice _choiceFromFlashcard({
     label: label,
     helper: isCorrect ? 'An toàn' : 'Không an toàn',
     accessibilityLabel: '$label. ${isCorrect ? 'An toàn.' : 'Không an toàn.'}',
-    imageAsset: isCorrect ? LessonAssets.mother : LessonAssets.childChoking,
+    imageAsset:
+        imageAsset ??
+        (isCorrect ? LessonAssets.mother : LessonAssets.childChoking),
     voice: LessonVoice(asset: voiceUrl ?? '', text: label),
     tone: isCorrect ? ChoiceTone.safe : ChoiceTone.danger,
     isCorrect: isCorrect,
@@ -3443,6 +3452,25 @@ String? _shortCopy(String? value) {
   }
 
   return text.length <= 220 ? text : '${text.substring(0, 217)}...';
+}
+
+String? _kidWarningCopy(String? value) {
+  final text = value?.trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+
+  final normalized = text.replaceAll(RegExp(r'\s+'), ' ');
+  final sentenceEnd = normalized.indexOf(RegExp(r'[.!?。]'));
+  final firstSentence = sentenceEnd > 0
+      ? normalized.substring(0, sentenceEnd + 1)
+      : normalized;
+  if (firstSentence.length <= 86) {
+    return firstSentence;
+  }
+
+  final short = firstSentence.substring(0, 83).trimRight();
+  return '$short...';
 }
 
 String? _rewardTitle(String? value) {
@@ -3591,6 +3619,13 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
         _phase == LessonPhase.wrongVideo;
   }
 
+  bool get _isResultFocusPhase {
+    return _phase == LessonPhase.correct ||
+        _phase == LessonPhase.wrong ||
+        _phase == LessonPhase.rewardBurst ||
+        _phase == LessonPhase.reward;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -3613,6 +3648,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   @override
   void dispose() {
     _rewardTimer?.cancel();
+    _audioController?.stopCelebration();
     _audioController?.restoreMusic();
     unawaited(_restoreSystemViewingMode());
     super.dispose();
@@ -3638,6 +3674,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
   void _restartLesson() {
     _rewardTimer?.cancel();
+    _audioController?.stopCelebration();
     setState(() {
       _selectedChoiceId = null;
       _hasRecordedCompletion = false;
@@ -3652,18 +3689,24 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   void _exitLesson() {
+    _audioController?.stopCelebration();
     Navigator.of(context).maybePop();
   }
 
   void _completeVideo() {
+    var shouldPlayCelebration = false;
+    var shouldPlayWarning = false;
+
     setState(() {
       switch (_phase) {
         case LessonPhase.introVideo:
           _phase = LessonPhase.inspectObject;
         case LessonPhase.correctVideo:
           _phase = LessonPhase.correct;
+          shouldPlayCelebration = true;
         case LessonPhase.wrongVideo:
           _phase = LessonPhase.wrong;
+          shouldPlayWarning = true;
         case LessonPhase.opening:
         case LessonPhase.inspectObject:
         case LessonPhase.correct:
@@ -3674,6 +3717,12 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
           break;
       }
     });
+
+    if (shouldPlayCelebration) {
+      _audioController?.playCelebration(maxDuration: _celebrationDuration);
+    } else if (shouldPlayWarning) {
+      _audioController?.playWarning();
+    }
   }
 
   void _inspectObject() {
@@ -3691,6 +3740,10 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
       orElse: () => widget.lesson.choices.last,
     );
 
+    if (!selectedChoice.isCorrect) {
+      unawaited(HapticFeedback.mediumImpact());
+    }
+
     setState(() {
       _selectedChoiceId = choiceId;
       _phase = selectedChoice.isCorrect
@@ -3700,6 +3753,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   void _retryChoice() {
+    _audioController?.stopCelebration();
     setState(() {
       _selectedChoiceId = null;
       _phase = LessonPhase.inspectObject;
@@ -3708,6 +3762,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
   void _showReward() {
     _rewardTimer?.cancel();
+    _audioController?.stopCelebration();
     if (!_hasRecordedCompletion) {
       _hasRecordedCompletion = true;
       unawaited(_recordLessonCompletion());
@@ -3717,7 +3772,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
       _phase = LessonPhase.rewardBurst;
     });
 
-    _rewardTimer = Timer(const Duration(milliseconds: 950), () {
+    _rewardTimer = Timer(_rewardBurstDuration, () {
       if (!mounted) {
         return;
       }
@@ -3770,6 +3825,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   Widget build(BuildContext context) {
     final lesson = widget.lesson;
     final isFlashcardPhase = _phase == LessonPhase.inspectObject;
+    final showFullHeader = !isFlashcardPhase && !_isResultFocusPhase;
 
     if (_isVideoPhase) {
       return Scaffold(
@@ -3802,7 +3858,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!isFlashcardPhase) ...[
+                if (showFullHeader) ...[
                   _GameHeader(
                     lesson: lesson,
                     hasReward: _hasReward,
@@ -3819,6 +3875,15 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                     children: [
                       if (!isFlashcardPhase)
                         Positioned.fill(child: _buildStage(lesson)),
+                      if (_phase == LessonPhase.correct)
+                        _CorrectCelebrationOverlay(onTap: _showReward),
+                      if (_phase == LessonPhase.wrong)
+                        _WrongFeedbackOverlay(
+                          title: lesson.wrongTitle,
+                          body: lesson.wrongExplanation,
+                          actionLabel: 'Thử lại lần nữa',
+                          onAction: _retryChoice,
+                        ),
                       if (_phase == LessonPhase.inspectObject)
                         _QuestionOverlay(
                           lesson: lesson,
@@ -3841,6 +3906,11 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                         ),
                       if (_phase == LessonPhase.parent)
                         _ParentNotesPanel(notes: lesson.parentNotes),
+                      if (_isResultFocusPhase)
+                        _CompactLessonControls(
+                          onRestart: _restartLesson,
+                          onExit: _exitLesson,
+                        ),
                     ],
                   ),
                 ),
@@ -3886,8 +3956,6 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
           lesson: lesson,
           phase: _phase,
           onInspectObject: _inspectObject,
-          onRetryChoice: _retryChoice,
-          onShowReward: _showReward,
         );
     }
   }
@@ -4014,6 +4082,39 @@ class _GameHeader extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _CompactLessonControls extends StatelessWidget {
+  const _CompactLessonControls({required this.onRestart, required this.onExit});
+
+  final VoidCallback onRestart;
+  final VoidCallback onExit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 12,
+      right: 12,
+      child: SafeArea(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SmallCircleIconButton(
+              label: 'Chơi lại màn',
+              icon: Icons.restart_alt_rounded,
+              onPressed: onRestart,
+            ),
+            const SizedBox(width: 8),
+            _SmallCircleIconButton(
+              label: 'Thoát bài học',
+              icon: Icons.close_rounded,
+              onPressed: onExit,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -4424,19 +4525,14 @@ class _SceneStage extends StatelessWidget {
     required this.lesson,
     required this.phase,
     required this.onInspectObject,
-    required this.onRetryChoice,
-    required this.onShowReward,
   });
 
   final SafetyLesson lesson;
   final LessonPhase phase;
   final VoidCallback onInspectObject;
-  final VoidCallback onRetryChoice;
-  final VoidCallback onShowReward;
 
   bool get _isObjectActive => phase == LessonPhase.opening;
   bool get _isWrong => phase == LessonPhase.wrong;
-  bool get _isCorrect => phase == LessonPhase.correct;
   bool get _showMother {
     return phase == LessonPhase.correct ||
         phase == LessonPhase.rewardBurst ||
@@ -4471,91 +4567,136 @@ class _SceneStage extends StatelessWidget {
           final width = constraints.maxWidth;
           final compact = width < 430;
 
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: Image.asset(
-                  LessonAssets.livingRoom,
-                  fit: BoxFit.cover,
-                  alignment: compact ? Alignment.center : Alignment.centerRight,
-                ),
-              ),
-              const Positioned.fill(child: _WarmSceneOverlay()),
-              Positioned(
-                left: compact ? 20 : width * 0.12,
-                bottom: compact ? 26 : 58,
-                child: _HazardSpot(
-                  isActive: _isObjectActive,
-                  hint: lesson.openingHint,
-                  onTap: onInspectObject,
-                ),
-              ),
-              Positioned(
-                right: compact ? -10 : width * 0.06,
-                bottom: compact ? 2 : 18,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 360),
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position:
-                            Tween<Offset>(
-                              begin: const Offset(0.08, 0.04),
-                              end: Offset.zero,
-                            ).animate(
-                              CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeOutBack,
-                              ),
-                            ),
-                        child: child,
-                      ),
-                    );
-                  },
+          return _WrongScreenShake(
+            isActive: _isWrong,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
                   child: Image.asset(
-                    _characterAsset,
-                    key: ValueKey(_characterAsset),
-                    width: compact ? width * 0.48 : width * 0.36,
-                    fit: BoxFit.contain,
+                    LessonAssets.livingRoom,
+                    fit: BoxFit.cover,
+                    alignment: compact
+                        ? Alignment.center
+                        : Alignment.centerRight,
                   ),
                 ),
-              ),
-              if (_showMother)
+                const Positioned.fill(child: _WarmSceneOverlay()),
                 Positioned(
-                  right: compact ? width * 0.32 : width * 0.33,
-                  bottom: compact ? 10 : 28,
-                  child: _FloatingImage(
-                    asset: LessonAssets.mother,
-                    width: compact ? width * 0.27 : width * 0.22,
-                    delay: const Duration(milliseconds: 220),
+                  left: compact ? 20 : width * 0.12,
+                  bottom: compact ? 26 : 58,
+                  child: _HazardSpot(
+                    isActive: _isObjectActive,
+                    hint: lesson.openingHint,
+                    onTap: onInspectObject,
                   ),
                 ),
-              if (_isWrong)
-                _ResultPanel(
-                  tone: ChoiceTone.danger,
-                  label: 'Cùng thử lại',
-                  title: lesson.wrongTitle,
-                  body: lesson.wrongExplanation,
-                  actionLabel: 'Chọn lại',
-                  icon: Icons.refresh_rounded,
-                  onAction: onRetryChoice,
+                Positioned(
+                  right: compact ? -10 : width * 0.06,
+                  bottom: compact ? 2 : 18,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 360),
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position:
+                              Tween<Offset>(
+                                begin: const Offset(0.08, 0.04),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOutBack,
+                                ),
+                              ),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Image.asset(
+                      _characterAsset,
+                      key: ValueKey(_characterAsset),
+                      width: compact ? width * 0.48 : width * 0.36,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
-              if (_isCorrect)
-                _ResultPanel(
-                  tone: ChoiceTone.safe,
-                  label: 'Rất tốt',
-                  title: lesson.correctTitle,
-                  body: lesson.correctExplanation,
-                  actionLabel: 'Nhận sao',
-                  icon: Icons.star_rounded,
-                  onAction: onShowReward,
-                ),
-            ],
+                if (_showMother)
+                  Positioned(
+                    right: compact ? width * 0.32 : width * 0.33,
+                    bottom: compact ? 10 : 28,
+                    child: _FloatingImage(
+                      asset: LessonAssets.mother,
+                      width: compact ? width * 0.27 : width * 0.22,
+                      delay: const Duration(milliseconds: 220),
+                    ),
+                  ),
+              ],
+            ),
           );
         },
       ),
+    );
+  }
+}
+
+class _WrongScreenShake extends StatefulWidget {
+  const _WrongScreenShake({required this.isActive, required this.child});
+
+  final bool isActive;
+  final Widget child;
+
+  @override
+  State<_WrongScreenShake> createState() => _WrongScreenShakeState();
+}
+
+class _WrongScreenShakeState extends State<_WrongScreenShake>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    );
+    if (widget.isActive) {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _WrongScreenShake oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        if (!widget.isActive) {
+          return child!;
+        }
+
+        final fade = 1 - Curves.easeOutCubic.transform(_controller.value);
+        final dx = math.sin(_controller.value * math.pi * 8) * 5 * fade;
+        final dy = math.cos(_controller.value * math.pi * 6) * 2 * fade;
+
+        return Transform.translate(offset: Offset(dx, dy), child: child);
+      },
     );
   }
 }
@@ -4738,6 +4879,7 @@ class _QuestionOverlay extends StatefulWidget {
 class _QuestionOverlayState extends State<_QuestionOverlay> {
   late final AudioPlayer _voicePlayer;
   String? _activeNarrationId;
+  String? _focusedChoiceId;
   bool _hasPlayedOpeningNarration = false;
   int _openingSequenceId = 0;
   int _voiceRequestId = 0;
@@ -4787,6 +4929,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
       _voiceRequestId++;
       _hasPlayedOpeningNarration = false;
       _activeNarrationId = null;
+      _focusedChoiceId = null;
       unawaited(_stopVoicePlayer());
       return;
     }
@@ -4951,6 +5094,48 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     unawaited(_playNarration(id, asset, _narrationTextFor(id)));
   }
 
+  void _focusQuestionNarration() {
+    if (widget.isParentReadingMode) {
+      return;
+    }
+
+    setState(() {
+      _focusedChoiceId = null;
+      _activeNarrationId = 'question';
+    });
+    _focusNarration('question', widget.lesson.questionVoice.asset);
+  }
+
+  void _previewOrSelectChoice(LessonChoice choice) {
+    if (_focusedChoiceId == choice.id) {
+      _openingSequenceId++;
+      _voiceRequestId++;
+      unawaited(_stopVoicePlayer());
+      widget.onSelectChoice(choice.id);
+      return;
+    }
+
+    setState(() {
+      _focusedChoiceId = choice.id;
+      _activeNarrationId = choice.id;
+    });
+    _focusNarration(choice.id, choice.voice.asset);
+  }
+
+  void _clearFocusedNarration() {
+    if (_focusedChoiceId == null && _activeNarrationId == null) {
+      return;
+    }
+
+    _openingSequenceId++;
+    _voiceRequestId++;
+    setState(() {
+      _focusedChoiceId = null;
+      _activeNarrationId = null;
+    });
+    unawaited(_stopVoicePlayer());
+  }
+
   String _narrationTextFor(String id) {
     if (id == 'question') {
       return widget.lesson.questionVoice.text;
@@ -5103,10 +5288,12 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
               child: _QuestionPanel(
                 lesson: widget.lesson,
                 selectedChoice: widget.selectedChoice,
+                focusedChoiceId: _focusedChoiceId,
                 activeNarrationId: _activeNarrationId,
                 isLandscape: isLandscape,
-                onVoiceFocus: _focusNarration,
-                onSelectChoice: widget.onSelectChoice,
+                onQuestionTap: _focusQuestionNarration,
+                onChoiceTap: _previewOrSelectChoice,
+                onClearFocus: _clearFocusedNarration,
               ),
             ),
           );
@@ -5120,18 +5307,22 @@ class _QuestionPanel extends StatelessWidget {
   const _QuestionPanel({
     required this.lesson,
     required this.selectedChoice,
+    required this.focusedChoiceId,
     required this.activeNarrationId,
     required this.isLandscape,
-    required this.onVoiceFocus,
-    required this.onSelectChoice,
+    required this.onQuestionTap,
+    required this.onChoiceTap,
+    required this.onClearFocus,
   });
 
   final SafetyLesson lesson;
   final LessonChoice? selectedChoice;
+  final String? focusedChoiceId;
   final String? activeNarrationId;
   final bool isLandscape;
-  final void Function(String id, String asset) onVoiceFocus;
-  final ValueChanged<String> onSelectChoice;
+  final VoidCallback onQuestionTap;
+  final ValueChanged<LessonChoice> onChoiceTap;
+  final VoidCallback onClearFocus;
 
   @override
   Widget build(BuildContext context) {
@@ -5141,13 +5332,15 @@ class _QuestionPanel extends StatelessWidget {
         final compactCards =
             constraints.maxHeight < 430 || constraints.maxWidth < 430;
         final choices = lesson.choices.map((choice) {
+          final isFocused = focusedChoiceId == choice.id;
+          final isNarrating = activeNarrationId == choice.id;
           return _KidChoiceCard(
             choice: choice,
             isSelected: selectedChoice?.id == choice.id,
-            isNarrating: activeNarrationId == choice.id,
+            isHighlighted: isFocused || isNarrating,
+            isNarrating: isNarrating,
             isCompact: compactCards,
-            onVoiceFocus: () => onVoiceFocus(choice.id, choice.voice.asset),
-            onSelect: () => onSelectChoice(choice.id),
+            onTap: () => onChoiceTap(choice),
           );
         }).toList();
 
@@ -5155,8 +5348,7 @@ class _QuestionPanel extends StatelessWidget {
           lesson: lesson,
           isActive: activeNarrationId == 'question',
           isCompact: compactCards,
-          onVoiceFocus: () =>
-              onVoiceFocus('question', lesson.questionVoice.asset),
+          onTap: onQuestionTap,
         );
 
         final choiceArea = useHorizontalChoices
@@ -5177,42 +5369,46 @@ class _QuestionPanel extends StatelessWidget {
                 ],
               );
 
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          padding: EdgeInsets.fromLTRB(
-            isLandscape ? 16 : 18,
-            isLandscape ? 12 : 16,
-            isLandscape ? 16 : 18,
-            isLandscape ? 16 : 18,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.84),
-              width: 4,
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onClearFocus,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: EdgeInsets.fromLTRB(
+              isLandscape ? 16 : 18,
+              isLandscape ? 12 : 16,
+              isLandscape ? 16 : 18,
+              isLandscape ? 16 : 18,
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x2625324B),
-                blurRadius: 28,
-                offset: Offset(0, 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.84),
+                width: 4,
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: prompt,
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x2625324B),
+                  blurRadius: 28,
+                  offset: Offset(0, 14),
                 ),
-              ),
-              SizedBox(height: isLandscape ? 14 : 18),
-              Expanded(child: choiceArea),
-            ],
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: prompt,
+                  ),
+                ),
+                SizedBox(height: isLandscape ? 14 : 18),
+                Expanded(child: choiceArea),
+              ],
+            ),
           ),
         );
       },
@@ -5225,13 +5421,13 @@ class _SimpleQuestionPrompt extends StatelessWidget {
     required this.lesson,
     required this.isActive,
     required this.isCompact,
-    required this.onVoiceFocus,
+    required this.onTap,
   });
 
   final SafetyLesson lesson;
   final bool isActive;
   final bool isCompact;
-  final VoidCallback onVoiceFocus;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -5239,31 +5435,34 @@ class _SimpleQuestionPrompt extends StatelessWidget {
       scale: isActive ? 1.02 : 1,
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutBack,
-      child: Container(
-        padding: EdgeInsets.fromLTRB(
-          isCompact ? 16 : 22,
-          isCompact ? 12 : 16,
-          isCompact ? 12 : 16,
-          isCompact ? 12 : 16,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: isActive ? GameColors.banana : Colors.white,
-            width: 4,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1F25324B),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: SmartStepsPressEffect(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(28),
+            child: Container(
+              padding: EdgeInsets.fromLTRB(
+                isCompact ? 16 : 22,
+                isCompact ? 12 : 16,
+                isCompact ? 16 : 22,
+                isCompact ? 12 : 16,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: isActive ? GameColors.banana : Colors.white,
+                  width: 4,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1F25324B),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
               child: Text(
                 lesson.inspectQuestion,
                 maxLines: 3,
@@ -5277,13 +5476,7 @@ class _SimpleQuestionPrompt extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            _VoiceButton(
-              label: 'Nghe câu hỏi',
-              isActive: isActive,
-              onPressed: onVoiceFocus,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -5294,105 +5487,161 @@ class _KidChoiceCard extends StatelessWidget {
   const _KidChoiceCard({
     required this.choice,
     required this.isSelected,
+    required this.isHighlighted,
     required this.isNarrating,
     required this.isCompact,
-    required this.onVoiceFocus,
-    required this.onSelect,
+    required this.onTap,
   });
 
   final LessonChoice choice;
   final bool isSelected;
+  final bool isHighlighted;
   final bool isNarrating;
   final bool isCompact;
-  final VoidCallback onVoiceFocus;
-  final VoidCallback onSelect;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final isDanger = choice.tone == ChoiceTone.danger;
     final accent = isDanger ? GameColors.danger : GameColors.safe;
-    final imageHeight = isCompact ? 108.0 : 142.0;
+    final isEmphasized = isHighlighted || isSelected;
+    final highlightColor = isHighlighted ? GameColors.banana : accent;
 
     return Semantics(
       button: true,
       selected: isSelected,
       label: choice.accessibilityLabel,
       child: AnimatedScale(
-        scale: isNarrating ? 1.04 : 1,
+        scale: isHighlighted ? 1.09 : (isSelected ? 1.04 : 1),
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutBack,
         child: Material(
           color: Colors.transparent,
           child: SmartStepsPressEffect(
             child: InkWell(
-              onTap: onSelect,
+              onTap: onTap,
               borderRadius: BorderRadius.circular(30),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
-                padding: EdgeInsets.fromLTRB(
-                  isCompact ? 12 : 18,
-                  isCompact ? 10 : 14,
-                  isCompact ? 12 : 18,
-                  isCompact ? 12 : 18,
-                ),
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(
-                    color: isNarrating
-                        ? GameColors.banana
-                        : isSelected
-                        ? accent
-                        : Colors.white,
-                    width: 5,
+                    color: isEmphasized ? highlightColor : Colors.white,
+                    width: isHighlighted ? 8 : (isSelected ? 6 : 5),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: accent.withValues(alpha: 0.16),
-                      blurRadius: isNarrating ? 30 : 18,
+                      color: highlightColor.withValues(
+                        alpha: isHighlighted ? 0.42 : 0.18,
+                      ),
+                      blurRadius: isHighlighted ? 34 : 18,
+                      spreadRadius: isHighlighted ? 4 : 0,
                       offset: const Offset(0, 12),
+                    ),
+                    if (isHighlighted)
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        blurRadius: 0,
+                        spreadRadius: 3,
+                      ),
+                    const BoxShadow(
+                      color: Color(0x2425324B),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
                     ),
                   ],
                 ),
                 child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Center(
-                            child: Image.asset(
-                              choice.imageAsset,
-                              height: imageHeight,
-                              fit: BoxFit.contain,
+                    Image.asset(
+                      choice.imageAsset,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.10),
+                            Colors.black.withValues(alpha: 0.34),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (isHighlighted)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: GameColors.banana.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.94),
+                                width: 3,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          choice.label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: GameColors.ink,
-                            fontSize: isCompact ? 20 : 25,
-                            fontWeight: FontWeight.w900,
-                            height: 1.05,
+                      ),
+                    Positioned(
+                      left: isCompact ? 8 : 12,
+                      right: isCompact ? 8 : 12,
+                      bottom: isCompact ? 8 : 12,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.28),
+                            width: 2,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x3325324B),
+                              blurRadius: 14,
+                              offset: Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 10 : 14,
+                            vertical: isCompact ? 8 : 10,
+                          ),
+                          child: Text(
+                            choice.label,
+                            maxLines: isCompact ? 3 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: GameColors.ink,
+                              fontSize: isCompact ? 17 : 22,
+                              fontWeight: FontWeight.w900,
+                              height: 1.08,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: _VoiceButton(
-                        label: 'Nghe lựa chọn ${choice.label}',
-                        isActive: isNarrating,
-                        onPressed: onVoiceFocus,
                       ),
                     ),
+                    if (isNarrating)
+                      Positioned(
+                        left: isCompact ? 8 : 12,
+                        top: isCompact ? 8 : 12,
+                        child: _ListeningIndicator(color: GameColors.banana),
+                      ),
+                    if (isHighlighted)
+                      const Positioned(
+                        right: 12,
+                        top: 12,
+                        child: _CardTapSelectHint(),
+                      ),
                   ],
                 ),
               ),
@@ -5404,58 +5653,1490 @@ class _KidChoiceCard extends StatelessWidget {
   }
 }
 
-class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({
-    required this.tone,
+class _ListeningIndicator extends StatefulWidget {
+  const _ListeningIndicator({required this.color});
+
+  final Color color;
+
+  @override
+  State<_ListeningIndicator> createState() => _ListeningIndicatorState();
+}
+
+class _ListeningIndicatorState extends State<_ListeningIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: widget.color.withValues(alpha: 0.78),
+              width: 4,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x2025324B),
+                blurRadius: 16,
+                offset: Offset(0, 7),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(3, (index) {
+              final phase = (_controller.value + index * 0.18) % 1.0;
+              final height = 10 + Curves.easeInOutSine.transform(phase) * 17;
+
+              return Container(
+                width: 5,
+                height: height,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: BoxDecoration(
+                  color: GameColors.ink,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CardTapSelectHint extends StatefulWidget {
+  const _CardTapSelectHint();
+
+  @override
+  State<_CardTapSelectHint> createState() => _CardTapSelectHintState();
+}
+
+class _CardTapSelectHintState extends State<_CardTapSelectHint>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 780),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Nhấn lại để chọn đáp án',
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final pulse = Curves.easeInOutSine.transform(_controller.value);
+
+          return Transform.scale(
+            scale: 1 + pulse * 0.12,
+            child: Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: GameColors.banana,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  width: 4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: GameColors.banana.withValues(alpha: 0.32),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.touch_app_rounded,
+                color: GameColors.ink,
+                size: 31,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CorrectCelebrationOverlay extends StatefulWidget {
+  const _CorrectCelebrationOverlay({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_CorrectCelebrationOverlay> createState() =>
+      _CorrectCelebrationOverlayState();
+}
+
+class _CorrectCelebrationOverlayState extends State<_CorrectCelebrationOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  static const _confetti = <_ConfettiSpec>[
+    _ConfettiSpec(
+      alignment: Alignment(-0.92, -0.78),
+      color: GameColors.safe,
+      size: 15,
+      drift: Offset(18, 90),
+      delay: 0.00,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.66, -0.58),
+      color: GameColors.banana,
+      size: 11,
+      drift: Offset(-10, 76),
+      delay: 0.16,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.32, -0.86),
+      color: GameColors.coral,
+      size: 13,
+      drift: Offset(26, 108),
+      delay: 0.08,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.05, -0.70),
+      color: GameColors.sky,
+      size: 17,
+      drift: Offset(-18, 96),
+      delay: 0.22,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.42, -0.88),
+      color: GameColors.mint,
+      size: 12,
+      drift: Offset(18, 112),
+      delay: 0.04,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.74, -0.62),
+      color: GameColors.banana,
+      size: 16,
+      drift: Offset(-24, 84),
+      delay: 0.18,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.92, -0.82),
+      color: GameColors.safe,
+      size: 10,
+      drift: Offset(-14, 102),
+      delay: 0.11,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.80, 0.05),
+      color: GameColors.sky,
+      size: 12,
+      drift: Offset(16, 70),
+      delay: 0.28,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.48, 0.22),
+      color: GameColors.banana,
+      size: 18,
+      drift: Offset(-18, 86),
+      delay: 0.33,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.18, 0.16),
+      color: GameColors.coral,
+      size: 12,
+      drift: Offset(22, 78),
+      delay: 0.26,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.62, 0.04),
+      color: GameColors.safe,
+      size: 14,
+      drift: Offset(-20, 92),
+      delay: 0.38,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.86, 0.26),
+      color: GameColors.mint,
+      size: 11,
+      drift: Offset(-24, 72),
+      delay: 0.31,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.96, -0.28),
+      color: GameColors.coral,
+      size: 18,
+      drift: Offset(36, 118),
+      delay: 0.47,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.18, -0.46),
+      color: GameColors.banana,
+      size: 14,
+      drift: Offset(-34, 132),
+      delay: 0.52,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.34, -0.44),
+      color: GameColors.safe,
+      size: 20,
+      drift: Offset(28, 126),
+      delay: 0.57,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.96, -0.22),
+      color: GameColors.sky,
+      size: 15,
+      drift: Offset(-42, 116),
+      delay: 0.49,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.70, -0.94),
+      color: GameColors.mint,
+      size: 13,
+      drift: Offset(18, 146),
+      delay: 0.62,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.04, -0.96),
+      color: GameColors.coral,
+      size: 16,
+      drift: Offset(-22, 150),
+      delay: 0.67,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.58, -0.96),
+      color: GameColors.safe,
+      size: 12,
+      drift: Offset(20, 142),
+      delay: 0.71,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.98, 0.46),
+      color: GameColors.banana,
+      size: 17,
+      drift: Offset(54, 76),
+      delay: 0.78,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.98, 0.52),
+      color: GameColors.coral,
+      size: 14,
+      drift: Offset(-56, 78),
+      delay: 0.82,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(-0.28, 0.48),
+      color: GameColors.sky,
+      size: 15,
+      drift: Offset(-30, 96),
+      delay: 0.88,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.42, 0.42),
+      color: GameColors.mint,
+      size: 18,
+      drift: Offset(34, 92),
+      delay: 0.92,
+      isCircle: true,
+    ),
+    _ConfettiSpec(
+      alignment: Alignment(0.00, -0.18),
+      color: GameColors.banana,
+      size: 22,
+      drift: Offset(0, 118),
+      delay: 0.96,
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1700),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Semantics(
+        button: true,
+        label: 'Chạm để nhận sao',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final progress = _controller.value;
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 520;
+                  final badgeAlignment = compact
+                      ? const Alignment(-0.34, 0.10)
+                      : const Alignment(-0.18, 0.08);
+
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _CelebrationRaysPainter(progress),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _SideFireworksPainter(progress),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _CenterBurstPainter(progress),
+                        ),
+                      ),
+                      for (final spec in _confetti)
+                        _CelebrationConfettiPiece(
+                          spec: spec,
+                          progress: progress,
+                        ),
+                      Align(
+                        alignment: badgeAlignment,
+                        child: _CelebrationBadge(
+                          progress: progress,
+                          compact: compact,
+                        ),
+                      ),
+                      Align(
+                        alignment: compact
+                            ? const Alignment(0.78, 0.58)
+                            : const Alignment(0.86, 0.42),
+                        child: _TapActionPill(
+                          key: const ValueKey('celebration-tap-hint'),
+                          label: 'Chạm để nhận sao',
+                          icon: Icons.touch_app_rounded,
+                          color: GameColors.safe,
+                          progress: progress,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CelebrationBadge extends StatelessWidget {
+  const _CelebrationBadge({required this.progress, required this.compact});
+
+  final double progress;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final pulse = 1 + math.sin(progress * math.pi * 2) * 0.075;
+    final float = math.sin(progress * math.pi * 2) * -11;
+
+    return Transform.translate(
+      offset: Offset(0, float),
+      child: Transform.scale(
+        scale: pulse,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: compact ? 250 : 326,
+              height: compact ? 166 : 214,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    GameColors.banana.withValues(alpha: 0.72),
+                    GameColors.safe.withValues(alpha: 0.28),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+            Transform.rotate(
+              angle: -0.10 + math.sin(progress * math.pi * 2) * 0.055,
+              child: Image.asset(
+                LessonAssets.rewardStar,
+                width: compact ? 144 : 196,
+                fit: BoxFit.contain,
+              ),
+            ),
+            Positioned(
+              bottom: compact ? -6 : -8,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 16 : 20,
+                  vertical: compact ? 9 : 11,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: GameColors.banana.withValues(alpha: 0.92),
+                    width: 5,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x4025324B),
+                      blurRadius: 26,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  'Tuyệt vời!',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: GameColors.ink,
+                    fontSize: compact ? 20 : 26,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TapActionPill extends StatelessWidget {
+  const _TapActionPill({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.progress,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final pulse = 1 + math.sin(progress * math.pi * 2) * 0.08;
+
+    return Semantics(
+      label: label,
+      child: Transform.scale(
+        scale: pulse,
+        child: Container(
+          width: 74,
+          height: 74,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withValues(alpha: 0.72), width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x3325324B),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Icon(icon, color: GameColors.ink, size: 38),
+        ),
+      ),
+    );
+  }
+}
+
+class _CelebrationConfettiPiece extends StatelessWidget {
+  const _CelebrationConfettiPiece({required this.spec, required this.progress});
+
+  final _ConfettiSpec spec;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final localProgress = ((progress + spec.delay) % 1.0);
+    final eased = Curves.easeOutCubic.transform(localProgress);
+    final opacity = localProgress < 0.12
+        ? localProgress / 0.12
+        : localProgress > 0.90
+        ? (1 - localProgress) / 0.10
+        : 1.0;
+    final rotation = (localProgress * math.pi * 4.4) + spec.delay * 10;
+    final size = spec.size * 1.18;
+
+    return Align(
+      alignment: spec.alignment,
+      child: Transform.translate(
+        offset: Offset(
+          spec.drift.dx * eased * 1.22,
+          spec.drift.dy * eased * 1.18,
+        ),
+        child: Transform.rotate(
+          angle: rotation,
+          child: Opacity(
+            opacity: opacity.clamp(0.0, 1.0).toDouble(),
+            child: Container(
+              width: spec.isCircle ? size : size * 0.72,
+              height: spec.isCircle ? size : size,
+              decoration: BoxDecoration(
+                color: spec.color,
+                shape: spec.isCircle ? BoxShape.circle : BoxShape.rectangle,
+                borderRadius: spec.isCircle ? null : BorderRadius.circular(4),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.66),
+                  width: 1.8,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfettiSpec {
+  const _ConfettiSpec({
+    required this.alignment,
+    required this.color,
+    required this.size,
+    required this.drift,
+    required this.delay,
+    this.isCircle = false,
+  });
+
+  final Alignment alignment;
+  final Color color;
+  final double size;
+  final Offset drift;
+  final double delay;
+  final bool isCircle;
+}
+
+class _SideFireworksPainter extends CustomPainter {
+  const _SideFireworksPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: true,
+      delay: 0.00,
+      color: GameColors.banana,
+      endY: 0.28,
+    );
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: false,
+      delay: 0.16,
+      color: GameColors.safe,
+      endY: 0.24,
+    );
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: true,
+      delay: 0.38,
+      color: GameColors.coral,
+      endY: 0.44,
+    );
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: false,
+      delay: 0.54,
+      color: GameColors.sky,
+      endY: 0.42,
+    );
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: true,
+      delay: 0.68,
+      color: GameColors.mint,
+      endY: 0.18,
+    );
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: false,
+      delay: 0.76,
+      color: GameColors.coral,
+      endY: 0.20,
+    );
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: true,
+      delay: 0.86,
+      color: GameColors.safe,
+      endY: 0.56,
+    );
+    _paintFirework(
+      canvas,
+      size,
+      fromLeft: false,
+      delay: 0.94,
+      color: GameColors.banana,
+      endY: 0.58,
+    );
+  }
+
+  void _paintFirework(
+    Canvas canvas,
+    Size size, {
+    required bool fromLeft,
+    required double delay,
+    required Color color,
+    required double endY,
+  }) {
+    final local = (progress + delay) % 1.0;
+    final launchProgress = (local / 0.34).clamp(0.0, 1.0).toDouble();
+    final burstProgress = ((local - 0.30) / 0.70).clamp(0.0, 1.0).toDouble();
+    final start = Offset(
+      fromLeft ? -18 : size.width + 18,
+      size.height * (fromLeft ? 0.76 : 0.72),
+    );
+    final end = Offset(
+      size.width * (fromLeft ? 0.30 : 0.70),
+      size.height * endY,
+    );
+    final rocketPosition = Offset.lerp(
+      start,
+      end,
+      Curves.easeOutCubic.transform(launchProgress),
+    )!;
+
+    if (local < 0.36) {
+      final trailPaint = Paint()
+        ..color = color.withValues(alpha: 0.48)
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(start, rocketPosition, trailPaint);
+      canvas.drawCircle(
+        rocketPosition,
+        7 + math.sin(local * math.pi * 9).abs() * 4,
+        Paint()..color = Colors.white.withValues(alpha: 0.86),
+      );
+      canvas.drawCircle(
+        rocketPosition,
+        16,
+        Paint()..color = color.withValues(alpha: 0.34),
+      );
+      return;
+    }
+
+    if (burstProgress <= 0) {
+      return;
+    }
+
+    final fade = 1 - Curves.easeInCubic.transform(burstProgress);
+    final radius = 24 + Curves.easeOutCubic.transform(burstProgress) * 104;
+    final linePaint = Paint()
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    final dotPaint = Paint()..style = PaintingStyle.fill;
+
+    for (var i = 0; i < 24; i++) {
+      final angle = (math.pi * 2 / 24) * i + delay * math.pi * 2;
+      final distance = radius * (0.70 + (i % 5) * 0.09);
+      final particle =
+          end + Offset(math.cos(angle), math.sin(angle)) * distance;
+      final accent = i.isEven ? color : GameColors.banana;
+      linePaint.color = accent.withValues(alpha: 0.44 * fade);
+      dotPaint.color = accent.withValues(alpha: 0.90 * fade);
+
+      canvas.drawLine(end, Offset.lerp(end, particle, 0.82)!, linePaint);
+      canvas.drawCircle(particle, 4.2 + (i % 4), dotPaint);
+    }
+
+    canvas.drawCircle(
+      end,
+      12 + burstProgress * 16,
+      Paint()..color = Colors.white.withValues(alpha: 0.70 * fade),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SideFireworksPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _CenterBurstPainter extends CustomPainter {
+  const _CenterBurstPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width * 0.47, size.height * 0.45);
+    final shortestSide = math.min(size.width, size.height);
+    final colors = <Color>[
+      GameColors.banana,
+      GameColors.safe,
+      GameColors.sky,
+      GameColors.coral,
+    ];
+
+    for (var ring = 0; ring < 3; ring++) {
+      final local = (progress + ring * 0.24) % 1.0;
+      final eased = Curves.easeOutCubic.transform(local);
+      final fade = 1 - Curves.easeInCubic.transform(local);
+      final radius = shortestSide * (0.12 + eased * (0.28 + ring * 0.035));
+      final stroke = Paint()
+        ..strokeWidth = 2.8 - ring * 0.35
+        ..strokeCap = StrokeCap.round;
+      final dot = Paint()..style = PaintingStyle.fill;
+
+      for (var i = 0; i < 28; i++) {
+        final angle =
+            (math.pi * 2 / 28) * i + progress * math.pi * (1.2 + ring * 0.25);
+        final outer =
+            center + Offset(math.cos(angle), math.sin(angle)) * radius;
+        final inner =
+            center + Offset(math.cos(angle), math.sin(angle)) * (radius * 0.54);
+        final accent = colors[(i + ring) % colors.length];
+        stroke.color = accent.withValues(alpha: 0.46 * fade);
+        dot.color = accent.withValues(alpha: 0.88 * fade);
+
+        canvas.drawLine(inner, outer, stroke);
+        canvas.drawCircle(outer, 2.8 + (i % 4) * 0.8, dot);
+      }
+
+      canvas.drawCircle(
+        center,
+        radius * 0.36,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.4
+          ..color = Colors.white.withValues(alpha: 0.30 * fade),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CenterBurstPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _CelebrationRaysPainter extends CustomPainter {
+  const _CelebrationRaysPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width * 0.48, size.height * 0.53);
+    final maxRadius = math.sqrt(
+      size.width * size.width + size.height * size.height,
+    );
+    final rayPaint = Paint()..style = PaintingStyle.fill;
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = ui.Gradient.radial(center, maxRadius * 0.48, [
+          GameColors.banana.withValues(alpha: 0.24),
+          GameColors.safe.withValues(alpha: 0.10),
+          Colors.transparent,
+        ]),
+    );
+
+    for (var i = 0; i < 24; i++) {
+      final angle = (math.pi * 2 / 24) * i + progress * math.pi * 0.42;
+      final spread = math.pi / 30;
+      final opacity = i.isEven ? 0.20 : 0.12;
+      rayPaint.color = (i.isEven ? GameColors.banana : GameColors.mint)
+          .withValues(alpha: opacity);
+
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..lineTo(
+          center.dx + math.cos(angle - spread) * maxRadius,
+          center.dy + math.sin(angle - spread) * maxRadius,
+        )
+        ..lineTo(
+          center.dx + math.cos(angle + spread) * maxRadius,
+          center.dy + math.sin(angle + spread) * maxRadius,
+        )
+        ..close();
+      canvas.drawPath(path, rayPaint);
+    }
+
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7
+      ..color = Colors.white.withValues(alpha: 0.34);
+    final ringPulse = 0.48 + progress * 0.56;
+    canvas.drawCircle(center, maxRadius * 0.16 * ringPulse, ringPaint);
+    canvas.drawCircle(
+      center,
+      maxRadius * 0.25 * ((progress + 0.42) % 1),
+      ringPaint..color = GameColors.banana.withValues(alpha: 0.26),
+    );
+    canvas.drawCircle(
+      center,
+      maxRadius * 0.32 * ((progress + 0.72) % 1),
+      ringPaint..color = GameColors.safe.withValues(alpha: 0.18),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CelebrationRaysPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _WrongFeedbackOverlay extends StatefulWidget {
+  const _WrongFeedbackOverlay({
+    required this.title,
+    required this.body,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final String title;
+  final String body;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  State<_WrongFeedbackOverlay> createState() => _WrongFeedbackOverlayState();
+}
+
+class _WrongFeedbackOverlayState extends State<_WrongFeedbackOverlay> {
+  bool _isEffectFinished = false;
+  bool _showRetryButton = false;
+
+  void _markEffectFinished() {
+    if (!mounted || _isEffectFinished) {
+      return;
+    }
+
+    setState(() {
+      _isEffectFinished = true;
+    });
+  }
+
+  void _handleTap() {
+    if (!_isEffectFinished || _showRetryButton) {
+      return;
+    }
+
+    unawaited(HapticFeedback.selectionClick());
+    setState(() {
+      _showRetryButton = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Semantics(
+        liveRegion: true,
+        label: 'Chưa an toàn. ${widget.body}',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleTap,
+          child: Stack(
+            children: [
+              _WrongAnswerScrim(onFinished: _markEffectFinished),
+              _WrongAnswerAlert(
+                label: 'Sai rồi',
+                title: widget.title,
+                body: widget.body,
+                actionLabel: widget.actionLabel,
+                showRetryButton: _showRetryButton,
+                showTapPrompt: _isEffectFinished && !_showRetryButton,
+                onAction: widget.onAction,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WrongAnswerScrim extends StatefulWidget {
+  const _WrongAnswerScrim({required this.onFinished});
+
+  final VoidCallback onFinished;
+
+  @override
+  State<_WrongAnswerScrim> createState() => _WrongAnswerScrimState();
+}
+
+class _WrongAnswerScrimState extends State<_WrongAnswerScrim>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Timer? _readyTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 820),
+    )..repeat(reverse: true);
+    _readyTimer = Timer(const Duration(milliseconds: 1200), widget.onFinished);
+  }
+
+  @override
+  void dispose() {
+    _readyTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: -14,
+      top: -10,
+      right: -14,
+      bottom: -14,
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final flash = Curves.easeInOutSine.transform(_controller.value);
+
+            return CustomPaint(
+              painter: _WrongScreenBorderPainter(flash),
+              child: const SizedBox.expand(),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _WrongScreenBorderPainter extends CustomPainter {
+  const _WrongScreenBorderPainter(this.flash);
+
+  final double flash;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final radius = Radius.circular(math.min(36, size.shortestSide * 0.08));
+    final rrect = RRect.fromRectAndRadius(rect.deflate(8), radius);
+    final red = const Color(0xFFFF3535);
+
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 24 + flash * 14
+        ..color = red.withValues(alpha: 0.08 + flash * 0.10),
+    );
+
+    canvas.drawRRect(
+      rrect.deflate(4),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 9 + flash * 5
+        ..color = red.withValues(alpha: 0.34 + flash * 0.34),
+    );
+
+    final cornerPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5 + flash * 3
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.18 + flash * 0.22);
+    const cornerLength = 54.0;
+    const inset = 22.0;
+
+    canvas.drawLine(
+      const Offset(inset, inset),
+      const Offset(inset + cornerLength, inset),
+      cornerPaint,
+    );
+    canvas.drawLine(
+      const Offset(inset, inset),
+      const Offset(inset, inset + cornerLength),
+      cornerPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width - inset, inset),
+      Offset(size.width - inset - cornerLength, inset),
+      cornerPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width - inset, inset),
+      Offset(size.width - inset, inset + cornerLength),
+      cornerPaint,
+    );
+    canvas.drawLine(
+      Offset(inset, size.height - inset),
+      Offset(inset + cornerLength, size.height - inset),
+      cornerPaint,
+    );
+    canvas.drawLine(
+      Offset(inset, size.height - inset),
+      Offset(inset, size.height - inset - cornerLength),
+      cornerPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width - inset, size.height - inset),
+      Offset(size.width - inset - cornerLength, size.height - inset),
+      cornerPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width - inset, size.height - inset),
+      Offset(size.width - inset, size.height - inset - cornerLength),
+      cornerPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _WrongScreenBorderPainter oldDelegate) {
+    return oldDelegate.flash != flash;
+  }
+}
+
+class _WrongAnswerAlert extends StatefulWidget {
+  const _WrongAnswerAlert({
     required this.label,
     required this.title,
     required this.body,
     required this.actionLabel,
-    required this.icon,
+    required this.showRetryButton,
+    required this.showTapPrompt,
     required this.onAction,
   });
 
-  final ChoiceTone tone;
   final String label;
   final String title;
   final String body;
   final String actionLabel;
-  final IconData icon;
+  final bool showRetryButton;
+  final bool showTapPrompt;
   final VoidCallback onAction;
 
   @override
-  Widget build(BuildContext context) {
-    final accent = tone == ChoiceTone.safe
-        ? GameColors.safe
-        : GameColors.danger;
+  State<_WrongAnswerAlert> createState() => _WrongAnswerAlertState();
+}
 
+class _WrongAnswerAlertState extends State<_WrongAnswerAlert>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 980),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Positioned(
-      left: 18,
-      right: 18,
-      top: 20,
-      child: AnimatedSlide(
-        offset: Offset.zero,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutBack,
-        child: _GlassPanel(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+      left: 16,
+      right: 16,
+      top: 46,
+      child: Semantics(
+        liveRegion: true,
+        label: 'Chưa đúng rồi. ${widget.body}',
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final entrance = Curves.easeOutBack.transform(
+              _controller.value.clamp(0.0, 1.0),
+            );
+            final shakeWindow = 1 - _controller.value.clamp(0.0, 1.0);
+            final shake =
+                math.sin(_controller.value * math.pi * 12) * 12 * shakeWindow;
+
+            return Opacity(
+              opacity: entrance.clamp(0.0, 1.0),
+              child: Transform.translate(
+                offset: Offset(shake, (1 - entrance) * -22),
+                child: Transform.scale(
+                  scale: 0.90 + entrance * 0.10,
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 420;
+
+              return Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _GlassPanel(
+                        padding: EdgeInsets.all(compact ? 16 : 22),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            _WrongAlertIcon(compact: compact),
+                            SizedBox(width: compact ? 12 : 18),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _DockLabel(widget.label),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    widget.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: GameColors.ink,
+                                      fontSize: compact ? 30 : 42,
+                                      fontWeight: FontWeight.w900,
+                                      height: 0.98,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    widget.body,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: GameColors.ink,
+                                      fontSize: compact ? 20 : 26,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.08,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(
+                              scale: CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutBack,
+                              ),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: widget.showRetryButton
+                            ? _RetryPromptAction(
+                                key: const ValueKey('retry-choice-button'),
+                                label: widget.actionLabel,
+                                color: GameColors.danger,
+                                onPressed: widget.onAction,
+                              )
+                            : widget.showTapPrompt
+                            ? Align(
+                                key: const ValueKey('wrong-tap-prompt'),
+                                alignment: Alignment.centerRight,
+                                child: _TapActionPill(
+                                  label: 'Chạm để tiếp tục',
+                                  icon: Icons.touch_app_rounded,
+                                  color: GameColors.danger,
+                                  progress: _controller.value,
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RetryPromptAction extends StatefulWidget {
+  const _RetryPromptAction({
+    super.key,
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  State<_RetryPromptAction> createState() => _RetryPromptActionState();
+}
+
+class _RetryPromptActionState extends State<_RetryPromptAction>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: SmartStepsPressEffect(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final pulse = Curves.easeInOutSine.transform(_controller.value);
+              final scale = 1 + pulse * 0.11;
+              final lift = -pulse * 7;
+              final angle = math.sin(_controller.value * math.pi * 2) * 0.16;
+
+              return Transform.translate(
+                offset: Offset(0, lift),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: GameColors.ink,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                        shadows: [
+                          Shadow(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Transform.rotate(
+                      angle: angle,
+                      child: Transform.scale(
+                        scale: scale,
+                        child: Container(
+                          width: 92,
+                          height: 92,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: widget.color.withValues(alpha: 0.76),
+                              width: 5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: widget.color.withValues(alpha: 0.24),
+                                blurRadius: 30,
+                                offset: const Offset(0, 14),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.refresh_rounded,
+                            color: GameColors.ink,
+                            size: 58,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WrongAlertIcon extends StatefulWidget {
+  const _WrongAlertIcon({required this.compact});
+
+  final bool compact;
+
+  @override
+  State<_WrongAlertIcon> createState() => _WrongAlertIconState();
+}
+
+class _WrongAlertIconState extends State<_WrongAlertIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 760),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.compact ? 76.0 : 98.0;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.86, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) {
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final pulse = _controller.value;
+
+          return Stack(
+            alignment: Alignment.center,
             children: [
-              _DockLabel(label),
-              const SizedBox(height: 6),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(body, style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 14),
-              _PillButton(
-                label: actionLabel,
-                icon: icon,
-                color: accent,
-                onPressed: onAction,
+              Transform.scale(
+                scale: 1 + pulse * 0.24,
+                child: Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    color: GameColors.coral.withValues(
+                      alpha: 0.10 + pulse * 0.12,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Transform.scale(scale: 1 + pulse * 0.035, child: child),
+            ],
+          );
+        },
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: GameColors.danger,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: [
+              BoxShadow(
+                color: GameColors.coral.withValues(alpha: 0.26),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
               ),
             ],
+          ),
+          child: const Icon(
+            Icons.priority_high_rounded,
+            color: GameColors.ink,
+            size: 52,
           ),
         ),
       ),
@@ -5479,7 +7160,7 @@ class _RewardBurstOverlayState extends State<_RewardBurstOverlay>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: _rewardBurstDuration,
     )..forward();
   }
 
@@ -5497,16 +7178,16 @@ class _RewardBurstOverlayState extends State<_RewardBurstOverlay>
           animation: _controller,
           builder: (context, child) {
             final scale =
-                0.2 + Curves.easeOutBack.transform(_controller.value) * 1.9;
-            final opacity = _controller.value < 0.8
+                0.12 + Curves.easeOutBack.transform(_controller.value) * 2.35;
+            final opacity = _controller.value < 0.74
                 ? 1.0
-                : (1 - ((_controller.value - 0.8) / 0.2))
+                : (1 - ((_controller.value - 0.74) / 0.26))
                       .clamp(0.0, 1.0)
                       .toDouble();
-            final rotation = -0.22 + _controller.value * 0.58;
+            final rotation = -0.34 + _controller.value * 0.82;
 
             return Container(
-              color: GameColors.cream.withValues(alpha: 0.10),
+              color: GameColors.cream.withValues(alpha: 0.18),
               alignment: Alignment.center,
               child: Opacity(
                 opacity: opacity,
@@ -5517,7 +7198,26 @@ class _RewardBurstOverlayState extends State<_RewardBurstOverlay>
               ),
             );
           },
-          child: Image.asset(LessonAssets.rewardStar, width: 150),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      GameColors.banana.withValues(alpha: 0.58),
+                      GameColors.safe.withValues(alpha: 0.18),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              Image.asset(LessonAssets.rewardStar, width: 176),
+            ],
+          ),
         ),
       ),
     );
@@ -5848,47 +7548,40 @@ class _CircleIconButton extends StatelessWidget {
   }
 }
 
-class _VoiceButton extends StatelessWidget {
-  const _VoiceButton({
+class _SmallCircleIconButton extends StatelessWidget {
+  const _SmallCircleIconButton({
     required this.label,
-    required this.isActive,
+    required this.icon,
     required this.onPressed,
   });
 
   final String label;
-  final bool isActive;
+  final IconData icon;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
       message: label,
-      child: AnimatedScale(
-        scale: isActive ? 1.08 : 1,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutBack,
-        child: SmartStepsPressEffect(
-          child: FilledButton(
-            onPressed: onPressed,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(52, 52),
-              fixedSize: const Size(52, 52),
-              padding: EdgeInsets.zero,
-              backgroundColor: isActive
-                  ? GameColors.banana
-                  : GameColors.banana.withValues(alpha: 0.92),
-              foregroundColor: GameColors.ink,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(26),
-                side: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.88),
-                  width: 4,
-                ),
+      child: SmartStepsPressEffect(
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(42, 42),
+            fixedSize: const Size(42, 42),
+            padding: EdgeInsets.zero,
+            backgroundColor: Colors.white.withValues(alpha: 0.88),
+            foregroundColor: GameColors.ink,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(21),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 3,
               ),
             ),
-            child: const Icon(Icons.volume_up_rounded, size: 27),
           ),
+          child: Icon(icon, size: 23),
         ),
       ),
     );

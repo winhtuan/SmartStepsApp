@@ -144,6 +144,8 @@ class Flashcard {
     this.questionVoiceUrl,
     this.optionAVoiceUrl,
     this.optionBVoiceUrl,
+    this.optionAImageUrl,
+    this.optionBImageUrl,
     this.correctFeedback,
     this.wrongFeedback,
   });
@@ -158,6 +160,8 @@ class Flashcard {
       questionVoiceUrl: _readNullableString(json['questionVoiceUrl']),
       optionAVoiceUrl: _readNullableString(json['optionAVoiceUrl']),
       optionBVoiceUrl: _readNullableString(json['optionBVoiceUrl']),
+      optionAImageUrl: _readNullableString(json['optionAImageUrl']),
+      optionBImageUrl: _readNullableString(json['optionBImageUrl']),
       correctFeedback: _readNullableString(json['correctFeedback']),
       wrongFeedback: _readNullableString(json['wrongFeedback']),
     );
@@ -171,6 +175,8 @@ class Flashcard {
   final String? questionVoiceUrl;
   final String? optionAVoiceUrl;
   final String? optionBVoiceUrl;
+  final String? optionAImageUrl;
+  final String? optionBImageUrl;
   final String? correctFeedback;
   final String? wrongFeedback;
 }

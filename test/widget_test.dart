@@ -81,14 +81,24 @@ void main() {
 
     await tester.tap(find.text(_fakeFlashcard.optionB));
     await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Bỏ qua clip'), findsNothing);
+
+    await tester.tap(find.text(_fakeFlashcard.optionB));
+    await tester.pump(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('Bỏ qua clip'));
     await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.text('Con làm đúng rồi!'), findsOneWidget);
+    expect(find.text('Tuyệt vời!'), findsOneWidget);
+    expect(find.text('Nhận sao'), findsNothing);
 
-    await tester.tap(find.text('Nhận sao'));
-    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.pump(const Duration(milliseconds: 5400));
+    expect(find.text('Kid knows API safety! +1 Safety Star'), findsNothing);
+    expect(find.text('Chạm để nhận sao'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('celebration-tap-hint')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1400));
 
     expect(find.text('Kid knows API safety! +1 Safety Star'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));

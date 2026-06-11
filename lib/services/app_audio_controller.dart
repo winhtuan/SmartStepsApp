@@ -11,6 +11,8 @@ class SmartStepsAudioAssets {
   static const backgroundMusic = 'audio/CatAmongTheFlowerPots.mp3';
   static const buttonTap = 'audio/button-click-291234.mp3';
   static const success = 'audio/success_chime.wav';
+  static const celebration = 'audio/crowd_cheer.mp3';
+  static const warning = 'audio/wrongAnswer.mp3';
 }
 
 final _backgroundMusicAudioContext = AudioContext(
@@ -42,7 +44,11 @@ class SmartStepsAudioController extends ChangeNotifier
   SmartStepsAudioController()
     : _musicPlayer = AudioPlayer(playerId: 'smartsteps-background-music'),
       _tapPlayer = AudioPlayer(playerId: 'smartsteps-button-tap'),
-      _successPlayer = AudioPlayer(playerId: 'smartsteps-success-chime');
+      _successPlayer = AudioPlayer(playerId: 'smartsteps-success-chime'),
+      _celebrationPlayer = AudioPlayer(
+        playerId: 'smartsteps-celebration-applause',
+      ),
+      _warningPlayer = AudioPlayer(playerId: 'smartsteps-warning-alert');
 
   static const _normalMusicVolume = 0.6;
   static const _duckedMusicVolume = 0.18;
@@ -50,7 +56,10 @@ class SmartStepsAudioController extends ChangeNotifier
   final AudioPlayer _musicPlayer;
   final AudioPlayer _tapPlayer;
   final AudioPlayer _successPlayer;
+  final AudioPlayer _celebrationPlayer;
+  final AudioPlayer _warningPlayer;
   StreamSubscription<PlayerState>? _musicStateSubscription;
+  Timer? _celebrationStopTimer;
 
   bool _isStarted = false;
   bool _isDisposed = false;
@@ -109,6 +118,48 @@ class SmartStepsAudioController extends ChangeNotifier
     unawaited(_recoverMusicAfter(const Duration(milliseconds: 820)));
   }
 
+  void playCelebration({
+    Duration maxDuration = const Duration(milliseconds: 5200),
+  }) {
+    if (!_isSfxEnabled) {
+      return;
+    }
+
+    _celebrationStopTimer?.cancel();
+    unawaited(HapticFeedback.heavyImpact());
+    unawaited(
+      _playSfx(
+        _celebrationPlayer,
+        SmartStepsAudioAssets.celebration,
+        volume: 0.94,
+      ),
+    );
+    _celebrationStopTimer = Timer(maxDuration, stopCelebration);
+    unawaited(_recoverMusicAfter(maxDuration));
+  }
+
+  void stopCelebration() {
+    _celebrationStopTimer?.cancel();
+    _celebrationStopTimer = null;
+    if (_isDisposed) {
+      return;
+    }
+
+    unawaited(_stopSfx(_celebrationPlayer, 'celebration'));
+  }
+
+  void playWarning() {
+    if (!_isSfxEnabled) {
+      return;
+    }
+
+    unawaited(HapticFeedback.mediumImpact());
+    unawaited(
+      _playSfx(_warningPlayer, SmartStepsAudioAssets.warning, volume: 0.78),
+    );
+    unawaited(_recoverMusicAfter(const Duration(milliseconds: 900)));
+  }
+
   void duckMusic() {
     _duckDepth += 1;
     unawaited(_applyMusicVolume());
@@ -147,6 +198,9 @@ class SmartStepsAudioController extends ChangeNotifier
     }
 
     _isSfxEnabled = isEnabled;
+    if (!isEnabled) {
+      stopCelebration();
+    }
     notifyListeners();
   }
 
@@ -187,10 +241,13 @@ class SmartStepsAudioController extends ChangeNotifier
 
     _isDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
+    _celebrationStopTimer?.cancel();
     unawaited(_musicStateSubscription?.cancel());
     unawaited(_musicPlayer.dispose());
     unawaited(_tapPlayer.dispose());
     unawaited(_successPlayer.dispose());
+    unawaited(_celebrationPlayer.dispose());
+    unawaited(_warningPlayer.dispose());
     super.dispose();
   }
 
@@ -300,6 +357,14 @@ class SmartStepsAudioController extends ChangeNotifier
       await player.play(AssetSource(asset));
     } catch (error, stackTrace) {
       _logAudioFailure('sfx $asset', error, stackTrace);
+    }
+  }
+
+  Future<void> _stopSfx(AudioPlayer player, String label) async {
+    try {
+      await player.stop();
+    } catch (error, stackTrace) {
+      _logAudioFailure('sfx stop $label', error, stackTrace);
     }
   }
 

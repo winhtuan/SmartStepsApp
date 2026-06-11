@@ -64,6 +64,9 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/flashCard/Crossroad/
+    - assets/images/flashCard/Safety_smallitems/
+    - assets/images/flashCard/Safety_stranger/
     - assets/images/logo/
     - assets/images/island/
     - assets/images/mascot/
