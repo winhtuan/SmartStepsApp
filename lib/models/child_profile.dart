@@ -6,6 +6,7 @@ class ChildProfile {
     required this.learningGoals,
     required this.acceptedTerms,
     required this.completedAt,
+    this.avatarStoragePath,
     this.skillProgress = const [],
     this.isPremium = false,
     this.premiumCode,
@@ -22,6 +23,7 @@ class ChildProfile {
       completedAt:
           DateTime.tryParse(_readString(json['completedAt'])) ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      avatarStoragePath: _readNullableString(json['avatarStoragePath']),
       skillProgress: _readSkillProgressList(json['skillProgress']),
       isPremium: json['isPremium'] == true,
       premiumCode: _readNullableString(json['premiumCode']),
@@ -37,6 +39,7 @@ class ChildProfile {
   final List<String> learningGoals;
   final bool acceptedTerms;
   final DateTime completedAt;
+  final String? avatarStoragePath;
   final List<SkillProgress> skillProgress;
   final bool isPremium;
   final String? premiumCode;
@@ -49,6 +52,7 @@ class ChildProfile {
     List<String>? learningGoals,
     bool? acceptedTerms,
     DateTime? completedAt,
+    String? avatarStoragePath,
     List<SkillProgress>? skillProgress,
     bool? isPremium,
     String? premiumCode,
@@ -61,6 +65,7 @@ class ChildProfile {
       learningGoals: learningGoals ?? this.learningGoals,
       acceptedTerms: acceptedTerms ?? this.acceptedTerms,
       completedAt: completedAt ?? this.completedAt,
+      avatarStoragePath: avatarStoragePath ?? this.avatarStoragePath,
       skillProgress: skillProgress ?? this.skillProgress,
       isPremium: isPremium ?? this.isPremium,
       premiumCode: premiumCode ?? this.premiumCode,
@@ -76,6 +81,7 @@ class ChildProfile {
       'learningGoals': learningGoals,
       'acceptedTerms': acceptedTerms,
       'completedAt': completedAt.toIso8601String(),
+      'avatarStoragePath': avatarStoragePath,
       'skillProgress': skillProgress
           .map((progress) => progress.toJson())
           .toList(growable: false),

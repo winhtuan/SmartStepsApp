@@ -70,11 +70,17 @@ flutter:
     - assets/images/logo/
     - assets/images/island/
     - assets/images/mascot/
+    - assets/images/avatars/
     - assets/audio/
-    - assets/videos/
-    - assets/videos/Crossroad/
-    - assets/videos/Safety_smallitems/
-    - assets/videos/Safety_stranger/
+    - assets/videos/Crossroad/intro.mp4
+    - assets/videos/Crossroad/wrong.mp4
+    - assets/videos/Crossroad/correct.mp4
+    - assets/videos/Safety_smallitems/lesson1-intro.mp4
+    - assets/videos/Safety_smallitems/lesson1-wrong.mp4
+    - assets/videos/Safety_smallitems/lesson1-correct.mp4
+    - assets/videos/Safety_stranger/Intro.mp4
+    - assets/videos/Safety_stranger/wrong.mp4
+    - assets/videos/Safety_stranger/correct.mp4
     - assets/voices/Crossroad/
     - assets/voices/Safety_smallitems/
     - assets/voices/Safety_stranger/

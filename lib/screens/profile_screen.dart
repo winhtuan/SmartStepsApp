@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/child_profile.dart';
 import '../services/local_profile_storage.dart';
+import '../services/registration_avatar_service.dart';
 import '../theme/duo_theme.dart';
 import '../widgets/duo_components.dart';
 
@@ -181,26 +182,23 @@ class _ChildSummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
+          SizedBox(
             width: 78,
             height: 78,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
+            child: ClipOval(
+              child: isLoading
+                  ? const ColoredBox(
+                      color: Colors.white,
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: DuoColors.darkYellow,
+                        ),
+                      ),
+                    )
+                  : _ProfileAvatar(profile: profile),
             ),
-            child: isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      color: DuoColors.darkYellow,
-                    ),
-                  )
-                : const Icon(
-                    Icons.child_care_rounded,
-                    color: DuoColors.darkYellow,
-                    size: 44,
-                  ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -229,6 +227,46 @@ class _ChildSummaryCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.profile});
+
+  final ChildProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = RegistrationAvatarService.findByStoragePath(
+      profile?.avatarStoragePath,
+    );
+    if (avatar == null) {
+      return const ColoredBox(
+        color: Colors.white,
+        child: Icon(
+          Icons.child_care_rounded,
+          color: DuoColors.darkYellow,
+          size: 44,
+        ),
+      );
+    }
+
+    final imageUrl = avatar.imageUrl;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Image.asset(
+        avatar.assetPath,
+        key: const ValueKey('profile-avatar-image'),
+        fit: BoxFit.cover,
+      );
+    }
+
+    return Image.network(
+      imageUrl,
+      key: const ValueKey('profile-avatar-image'),
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) =>
+          Image.asset(avatar.assetPath, fit: BoxFit.cover),
     );
   }
 }

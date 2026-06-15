@@ -26,7 +26,7 @@ Future<void> initializeSupabaseIfConfigured() async {
   try {
     await Supabase.initialize(
       url: SupabaseConfig.url,
-      anonKey: SupabaseConfig.anonKey,
+      publishableKey: SupabaseConfig.anonKey,
     );
   } catch (error, stackTrace) {
     debugPrint('SmartSteps Supabase initialization failed: $error');
