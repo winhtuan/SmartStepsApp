@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../theme/duo_theme.dart';
 import '../widgets/smartsteps_press_effect.dart';
+import '../services/local_profile_storage.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key, this.onLogin});
+  const LoginScreen({
+    super.key,
+    required this.profileStorage,
+    required this.onLogin,
+    required this.onRegistrationCompleted,
+  });
 
-  final void Function(BuildContext context)? onLogin;
+  final LocalProfileStorage profileStorage;
+  final void Function(BuildContext context) onLogin;
+  final void Function(BuildContext context) onRegistrationCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +115,9 @@ class LoginScreen extends StatelessWidget {
                                               animation,
                                               secondaryAnimation,
                                             ) => RegisterScreen(
-                                              onRegister: onLogin,
+                                              profileStorage: profileStorage,
+                                              onRegistrationCompleted:
+                                                  onRegistrationCompleted,
                                             ),
                                         transitionsBuilder:
                                             (
@@ -189,7 +199,7 @@ class LoginScreen extends StatelessWidget {
                               child: FilledButton(
                                 key: const ValueKey('login-submit-button'),
                                 onPressed: () {
-                                  onLogin?.call(context);
+                                  onLogin(context);
                                 },
                                 style: FilledButton.styleFrom(
                                   elevation: 0,

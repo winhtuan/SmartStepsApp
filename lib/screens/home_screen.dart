@@ -19,11 +19,11 @@ import '../utils/constants.dart';
 import '../widgets/duo_components.dart';
 import '../widgets/smartsteps_press_effect.dart';
 import 'app_feedback_dialog.dart';
-import 'initial_survey_screen.dart';
 import 'learn_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'quick_review_screen.dart';
+import 'register_screen.dart';
 
 Future<void> runSmartStepsApp() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -103,28 +103,35 @@ class _SmartStepsAppState extends State<SmartStepsApp> {
     unawaited(_handleLoginAsync(Navigator.of(context)));
   }
 
+  void _handleRegistrationCompleted(BuildContext context) {
+    if (widget.enableAudio) {
+      unawaited(_audioController.ensureBackgroundMusicPlaying());
+    }
+    _openCatalog(Navigator.of(context));
+  }
+
   Future<void> _handleLoginAsync(NavigatorState navigator) async {
     final hasProfile = await widget.profileStorage.hasProfile();
     if (!mounted) {
       return;
     }
 
-    final shouldShowSurvey =
+    final shouldShowOnboarding =
         widget.showInitialSurveyAfterLogin &&
         !_hasCompletedInitialSurvey &&
         !hasProfile;
-    if (!shouldShowSurvey) {
+    if (!shouldShowOnboarding) {
       _openCatalog(navigator);
       return;
     }
 
     navigator.pushReplacement(
       MaterialPageRoute<void>(
-        builder: (surveyContext) => InitialSurveyScreen(
+        builder: (registrationContext) => RegisterScreen(
           profileStorage: widget.profileStorage,
-          onCompleted: () {
+          onRegistrationCompleted: (context) {
             _hasCompletedInitialSurvey = true;
-            _openCatalog(Navigator.of(surveyContext));
+            _openCatalog(Navigator.of(registrationContext));
           },
         ),
       ),
@@ -137,7 +144,11 @@ class _SmartStepsAppState extends State<SmartStepsApp> {
       debugShowCheckedModeBanner: false,
       title: 'SmartSteps',
       theme: DuoTheme.light,
-      home: LoginScreen(onLogin: _handleLogin),
+      home: LoginScreen(
+        profileStorage: widget.profileStorage,
+        onLogin: _handleLogin,
+        onRegistrationCompleted: _handleRegistrationCompleted,
+      ),
     );
 
     if (!widget.enableAudio) {
@@ -5451,25 +5462,34 @@ class _FullscreenClipControls extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Spacer(),
-                SmartStepsPressEffect(
-                  child: TextButton(
-                    onPressed: () {
-                      unawaited(onSkip());
-                    },
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.52),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 11,
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: SmartStepsPressEffect(
+                      child: TextButton(
+                        onPressed: () {
+                          unawaited(onSkip());
+                        },
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.black.withValues(alpha: 0.52),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 11,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        child: Text(
+                          copy.skipLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
-                    child: Text(copy.skipLabel),
                   ),
                 ),
               ],
@@ -7531,11 +7551,16 @@ class _CelebrationRaysPainter extends CustomPainter {
     canvas.drawRect(
       Offset.zero & size,
       Paint()
-        ..shader = ui.Gradient.radial(center, maxRadius * 0.48, [
-          GameColors.banana.withValues(alpha: 0.24),
-          GameColors.safe.withValues(alpha: 0.10),
-          Colors.transparent,
-        ]),
+        ..shader = ui.Gradient.radial(
+          center,
+          maxRadius * 0.48,
+          [
+            GameColors.banana.withValues(alpha: 0.24),
+            GameColors.safe.withValues(alpha: 0.10),
+            Colors.transparent,
+          ],
+          [0, 0.56, 1],
+        ),
     );
 
     for (var i = 0; i < 24; i++) {
@@ -8966,10 +8991,12 @@ class _ParentalGateDialogState extends State<_ParentalGateDialog> {
           const SizedBox(height: 16),
           Text(
             '$_num1 x $_num2 = ?',
+            key: const ValueKey('parental-gate-question'),
             style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           TextField(
+            key: const ValueKey('parental-gate-answer-field'),
             controller: _answerController,
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
