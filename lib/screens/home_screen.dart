@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -96,6 +97,9 @@ class _SmartStepsAppState extends State<SmartStepsApp> {
   }
 
   void _handleLogin(BuildContext context) {
+    if (widget.enableAudio) {
+      unawaited(_audioController.ensureBackgroundMusicPlaying());
+    }
     unawaited(_handleLoginAsync(Navigator.of(context)));
   }
 
@@ -4507,7 +4511,7 @@ String? _rewardTitle(String? value) {
 const correctChoiceId = 'ask-adult';
 const _voicePlaybackRate = 0.82;
 const _voicePlaybackTimeout = Duration(seconds: 12);
-const _voiceStartTimeout = Duration(milliseconds: 1800);
+const _voiceStartTimeout = Duration(milliseconds: 4000);
 const _voiceSequenceGap = Duration(milliseconds: 360);
 const _questionFallbackDuration = Duration(milliseconds: 3600);
 const _choiceFallbackDuration = Duration(milliseconds: 2300);
@@ -4523,7 +4527,11 @@ final _voiceAudioContext = AudioContext(
   android: const AudioContextAndroid(
     contentType: AndroidContentType.speech,
     usageType: AndroidUsageType.media,
-    audioFocus: AndroidAudioFocus.gain,
+    audioFocus: AndroidAudioFocus.none,
+  ),
+  iOS: AudioContextIOS(
+    category: AVAudioSessionCategory.playback,
+    options: const {AVAudioSessionOptions.mixWithOthers},
   ),
 );
 
@@ -5924,6 +5932,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     super.initState();
     _activeNarrationId = widget.isParentReadingMode ? null : 'question';
     _voicePlayer = AudioPlayer();
+    unawaited(_prepareVoicePlayer());
     if (!widget.isParentReadingMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_playOpeningNarrationOnce());
@@ -6004,6 +6013,13 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   }
 
   Future<void> _setVoicePlaybackRate() async {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        await _voicePlayer.setPlaybackRate(1.0);
+      } catch (_) {}
+      return;
+    }
+
     try {
       await _voicePlayer.setPlaybackRate(_voicePlaybackRate);
     } catch (error, stackTrace) {
@@ -6202,11 +6218,6 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
         return false;
       }
 
-      await _prepareVoicePlayer();
-      if (!mounted || requestId != _voiceRequestId) {
-        return false;
-      }
-
       if (remoteVoiceUrl == null) {
         if (!asset.trim().startsWith('assets/')) {
           debugPrint('SmartSteps voice has no signed URL: $assetPath');
@@ -6226,6 +6237,10 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
       if (!mounted || requestId != _voiceRequestId) {
         return false;
       }
+      await _setVoicePlaybackRate();
+      if (!mounted || requestId != _voiceRequestId) {
+        return false;
+      }
       final startedFuture = _voicePlayer.onPlayerStateChanged
           .where((state) => state == PlayerState.playing)
           .first
@@ -6242,7 +6257,6 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
         debugPrint('SmartSteps voice did not enter playing state: $assetPath');
         return false;
       }
-      await _setVoicePlaybackRate();
       debugPrint('SmartSteps voice playing: $assetPath');
       final minimumHold = _fallbackDurationFor(id);
       final stopwatch = Stopwatch()..start();
