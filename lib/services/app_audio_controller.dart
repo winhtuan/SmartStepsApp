@@ -118,9 +118,7 @@ class SmartStepsAudioController extends ChangeNotifier
     unawaited(_recoverMusicAfter(const Duration(milliseconds: 820)));
   }
 
-  void playCelebration({
-    Duration maxDuration = const Duration(milliseconds: 5200),
-  }) {
+  void playCelebration({Duration? maxDuration}) {
     if (!_isSfxEnabled) {
       return;
     }
@@ -132,10 +130,13 @@ class SmartStepsAudioController extends ChangeNotifier
         _celebrationPlayer,
         SmartStepsAudioAssets.celebration,
         volume: 0.94,
+        releaseMode: ReleaseMode.loop,
       ),
     );
-    _celebrationStopTimer = Timer(maxDuration, stopCelebration);
-    unawaited(_recoverMusicAfter(maxDuration));
+    if (maxDuration != null) {
+      _celebrationStopTimer = Timer(maxDuration, stopCelebration);
+      unawaited(_recoverMusicAfter(maxDuration));
+    }
   }
 
   void stopCelebration() {
@@ -343,6 +344,7 @@ class SmartStepsAudioController extends ChangeNotifier
     AudioPlayer player,
     String asset, {
     required double volume,
+    ReleaseMode releaseMode = ReleaseMode.stop,
   }) async {
     if (_isDisposed) {
       return;
@@ -351,7 +353,7 @@ class SmartStepsAudioController extends ChangeNotifier
     try {
       await player.setAudioContext(_sfxAudioContext);
       await player.setPlayerMode(PlayerMode.mediaPlayer);
-      await player.setReleaseMode(ReleaseMode.stop);
+      await player.setReleaseMode(releaseMode);
       await player.stop();
       await player.setVolume(volume);
       await player.play(AssetSource(asset));

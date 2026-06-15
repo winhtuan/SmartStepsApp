@@ -14,6 +14,7 @@ import '../services/supabase_config.dart';
 import '../services/app_audio_controller.dart';
 import '../services/local_profile_storage.dart';
 import '../theme/duo_theme.dart';
+import '../utils/constants.dart';
 import '../widgets/duo_components.dart';
 import '../widgets/smartsteps_press_effect.dart';
 import 'app_feedback_dialog.dart';
@@ -530,68 +531,33 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
       body: IndexedStack(
         index: _selectedTabIndex,
         children: [
-          DecoratedBox(
-            decoration: const BoxDecoration(color: DuoColors.background),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _CatalogTopBar(
-                      profile: _profile,
-                      audioController: SmartStepsAudioScope.maybeOf(context),
-                      plan: _profile?.planName ?? 'Miễn phí',
-                      onUpgradePressed: _profile?.isPremium == true
-                          ? null
-                          : () {
-                              unawaited(_showPremiumOffer());
-                            },
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: _CatalogContentFrame(
-                        isLoading: _isLoadingCatalog && _islands.isEmpty,
-                        error: _catalogError,
-                        child: selectedIsland == null
-                            ? _IslandCatalogViewNew(
-                                islands: _islands,
-                                onSelected: _selectIsland,
-                              )
-                            : _IslandSituationViewNew(
-                                island: selectedIsland,
-                                situations: selectedSituations,
-                                isLoadingSituations: _isLoadingIslandSituations,
-                                isPremium: _profile?.isPremium ?? false,
-                                activeLessonId: _activeLesson?.id,
-                                loadingSituationId: _loadingSituationId,
-                                onBack: _showIslands,
-                                onLocked: _showPremiumRequired,
-                                onSelected: (summary) {
-                                  unawaited(_selectSituation(summary));
-                                },
-                              ),
-                      ),
-                    ),
-                    if (_activeLesson != null) ...[
-                      const SizedBox(height: 14),
-                      _PillButton(
-                        key: const ValueKey('start-lesson-button'),
-                        label: 'Bắt đầu bài học',
-                        icon: Icons.play_arrow_rounded,
-                        color: GameColors.banana,
-                        onPressed: canStartLesson
-                            ? () {
-                                unawaited(_openLesson());
-                              }
-                            : null,
-                      ),
-                    ],
-                  ],
+          selectedIsland == null
+              ? _IslandHomeMapTab(
+                  profile: _profile,
+                  audioController: SmartStepsAudioScope.maybeOf(context),
+                  islands: _islands,
+                  isLoading: _isLoadingCatalog && _islands.isEmpty,
+                  error: _catalogError,
+                  onSelected: _selectIsland,
+                )
+              : _IslandLessonMapTab(
+                  island: selectedIsland,
+                  situations: selectedSituations,
+                  isLoadingSituations: _isLoadingIslandSituations,
+                  isPremium: _profile?.isPremium ?? false,
+                  activeLessonId: _activeLesson?.id,
+                  loadingSituationId: _loadingSituationId,
+                  hasActiveLesson: _activeLesson != null,
+                  canStartLesson: canStartLesson,
+                  onBack: _showIslands,
+                  onLocked: _showPremiumRequired,
+                  onSelected: (summary) {
+                    unawaited(_selectSituation(summary));
+                  },
+                  onStartLesson: () {
+                    unawaited(_openLesson());
+                  },
                 ),
-              ),
-            ),
-          ),
           ParentReportPage(
             situationService: _situationService,
             profileStorage: widget.profileStorage,
@@ -1108,11 +1074,1053 @@ class _SmartStepsBottomNavigationItem extends StatelessWidget {
   }
 }
 
+class _IslandHomeMapTab extends StatelessWidget {
+  const _IslandHomeMapTab({
+    required this.profile,
+    required this.audioController,
+    required this.islands,
+    required this.isLoading,
+    required this.error,
+    required this.onSelected,
+  });
+
+  final ChildProfile? profile;
+  final SmartStepsAudioController? audioController;
+  final List<_IslandCatalogEntry> islands;
+  final bool isLoading;
+  final String? error;
+  final ValueChanged<_IslandCatalogEntry> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: DuoColors.primaryYellow,
+      child: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: _IslandHomeHeader(
+              profile: profile,
+              audioController: audioController,
+            ),
+          ),
+          Expanded(
+            child: _IslandMapStage(
+              islands: islands,
+              isLoading: isLoading,
+              error: error,
+              onSelected: onSelected,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IslandHomeHeader extends StatelessWidget {
+  const _IslandHomeHeader({
+    required this.profile,
+    required this.audioController,
+  });
+
+  final ChildProfile? profile;
+  final SmartStepsAudioController? audioController;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 380;
+        final showAudioControls =
+            audioController != null && constraints.maxWidth >= 430;
+        final logoSize = isCompact ? 58.0 : 72.0;
+        final avatarSize = isCompact ? 56.0 : 66.0;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            isCompact ? 16 : 24,
+            isCompact ? 8 : 12,
+            isCompact ? 16 : 24,
+            isCompact ? 10 : 14,
+          ),
+          child: SizedBox(
+            height: isCompact ? 64 : 78,
+            child: Row(
+              children: [
+                Container(
+                  width: logoSize,
+                  height: logoSize,
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: ClipOval(
+                    child: Image.asset(LessonAssets.logo, fit: BoxFit.contain),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    AppConstants.appName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isCompact ? 25 : 31,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                if (showAudioControls) ...[
+                  _AudioToggleCluster(controller: audioController!),
+                  const SizedBox(width: 12),
+                ],
+                Tooltip(
+                  message: _catalogChildName(profile),
+                  child: _KidProfileAvatar(size: avatarSize),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _IslandMapStage extends StatelessWidget {
+  const _IslandMapStage({
+    required this.islands,
+    required this.isLoading,
+    required this.error,
+    required this.onSelected,
+  });
+
+  final List<_IslandCatalogEntry> islands;
+  final bool isLoading;
+  final String? error;
+  final ValueChanged<_IslandCatalogEntry> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+        final transform = _IslandMapTransform.cover(
+          source: _islandMapSourceSize,
+          viewport: viewport,
+        );
+        final orderedIslands = [...islands]
+          ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+        final visibleIslandCount = math.min(
+          orderedIslands.length,
+          _islandMapSlots.length,
+        );
+
+        return ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                LessonAssets.islandBackground,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+              ),
+              for (var index = 0; index < visibleIslandCount; index++)
+                _IslandMapHitArea(
+                  key: ValueKey('island-${orderedIslands[index].islandId}'),
+                  rect: transform.centeredRect(
+                    _islandMapSlots[index].hitCenter,
+                    _islandMapSlots[index].hitSize,
+                  ),
+                  title: _islandMapTitle(orderedIslands[index], index),
+                  onTap: () => onSelected(orderedIslands[index]),
+                ),
+              for (var index = 0; index < visibleIslandCount; index++)
+                _IslandMapLabelPositioner(
+                  viewport: viewport,
+                  transform: transform,
+                  slot: _islandMapSlots[index],
+                  title: _islandMapTitle(orderedIslands[index], index),
+                  onTap: () => onSelected(orderedIslands[index]),
+                ),
+              if (isLoading)
+                const _IslandMapStatusOverlay(
+                  icon: Icons.sync_rounded,
+                  title: 'Đang tải dữ liệu',
+                  body: 'SmartSteps đang mở bản đồ đảo.',
+                )
+              else if (error != null)
+                _IslandMapStatusOverlay(
+                  icon: Icons.cloud_off_rounded,
+                  title: 'Không tải được dữ liệu',
+                  body: error!,
+                )
+              else if (orderedIslands.isEmpty)
+                const _IslandMapStatusOverlay(
+                  icon: Icons.map_outlined,
+                  title: 'Chưa có đảo',
+                  body: 'Chưa có bài học đã xuất bản.',
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _IslandMapLabelPositioner extends StatelessWidget {
+  const _IslandMapLabelPositioner({
+    required this.viewport,
+    required this.transform,
+    required this.slot,
+    required this.title,
+    required this.onTap,
+  });
+
+  final Size viewport;
+  final _IslandMapTransform transform;
+  final _IslandMapSlot slot;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final anchor = transform.point(slot.labelAnchor);
+    final fontSize = (viewport.width * 0.047).clamp(22.0, 38.0).toDouble();
+    final minWidth = math.min(172.0, viewport.width - 24);
+    final maxLeft = math.max(12.0, viewport.width - minWidth - 12);
+    final left = anchor.dx.clamp(12.0, maxLeft).toDouble();
+    final availableWidth = math.max(112.0, viewport.width - left - 12);
+    final preferredWidth = math.min(
+      slot.maxLabelWidth,
+      viewport.width * slot.labelWidthFactor,
+    );
+    final labelWidth = math.min(preferredWidth, availableWidth);
+    final top = anchor.dy.clamp(8.0, viewport.height - 72).toDouble();
+
+    return Positioned(
+      left: left,
+      top: top,
+      width: labelWidth,
+      child: _IslandMapLabel(
+        title: title,
+        icon: slot.icon,
+        fontSize: fontSize,
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _IslandMapLabel extends StatelessWidget {
+  const _IslandMapLabel({
+    required this.title,
+    required this.icon,
+    required this.fontSize,
+    required this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final double fontSize;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final shadow = Shadow(
+      color: const Color(0xFF006A8D).withValues(alpha: 0.46),
+      blurRadius: 10,
+      offset: const Offset(0, 2),
+    );
+
+    return Semantics(
+      button: true,
+      label: title,
+      child: SmartStepsPressEffect(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            splashColor: Colors.white.withValues(alpha: 0.16),
+            highlightColor: Colors.white.withValues(alpha: 0.08),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w500,
+                        height: 1.05,
+                        shadows: [shadow],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    icon,
+                    color: Colors.white,
+                    size: fontSize * 0.86,
+                    shadows: [shadow],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapHitArea extends StatelessWidget {
+  const _IslandMapHitArea({
+    super.key,
+    required this.rect,
+    required this.title,
+    required this.onTap,
+  });
+
+  final Rect rect;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fromRect(
+      rect: rect,
+      child: Semantics(
+        button: true,
+        label: 'Mở $title',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(48),
+            splashColor: Colors.white.withValues(alpha: 0.12),
+            highlightColor: Colors.white.withValues(alpha: 0.06),
+            onTap: onTap,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapStatusOverlay extends StatelessWidget {
+  const _IslandMapStatusOverlay({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: _GlassPanel(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: GameColors.ink, size: 40),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapTransform {
+  const _IslandMapTransform({required this.scale, required this.offset});
+
+  factory _IslandMapTransform.cover({
+    required Size source,
+    required Size viewport,
+  }) {
+    final scale = math.max(
+      viewport.width / source.width,
+      viewport.height / source.height,
+    );
+    final renderedSize = Size(source.width * scale, source.height * scale);
+
+    return _IslandMapTransform(
+      scale: scale,
+      offset: Offset(
+        (viewport.width - renderedSize.width) / 2,
+        (viewport.height - renderedSize.height) / 2,
+      ),
+    );
+  }
+
+  final double scale;
+  final Offset offset;
+
+  Offset point(Offset sourcePoint) {
+    return Offset(
+      offset.dx + sourcePoint.dx * scale,
+      offset.dy + sourcePoint.dy * scale,
+    );
+  }
+
+  Rect centeredRect(Offset sourceCenter, Size sourceSize) {
+    final center = point(sourceCenter);
+    return Rect.fromCenter(
+      center: center,
+      width: sourceSize.width * scale,
+      height: sourceSize.height * scale,
+    );
+  }
+}
+
+class _IslandMapSlot {
+  const _IslandMapSlot({
+    required this.hitCenter,
+    required this.hitSize,
+    required this.labelAnchor,
+    required this.maxLabelWidth,
+    required this.labelWidthFactor,
+    required this.icon,
+  });
+
+  final Offset hitCenter;
+  final Size hitSize;
+  final Offset labelAnchor;
+  final double maxLabelWidth;
+  final double labelWidthFactor;
+  final IconData icon;
+}
+
+const _islandMapSourceSize = Size(1000, 1715);
+
+const _islandMapSlots = [
+  _IslandMapSlot(
+    hitCenter: Offset(720, 480),
+    hitSize: Size(430, 340),
+    labelAnchor: Offset(122, 308),
+    maxLabelWidth: 420,
+    labelWidthFactor: 0.56,
+    icon: Icons.card_giftcard_rounded,
+  ),
+  _IslandMapSlot(
+    hitCenter: Offset(360, 900),
+    hitSize: Size(520, 420),
+    labelAnchor: Offset(548, 820),
+    maxLabelWidth: 420,
+    labelWidthFactor: 0.50,
+    icon: Icons.star_rounded,
+  ),
+  _IslandMapSlot(
+    hitCenter: Offset(735, 1390),
+    hitSize: Size(520, 420),
+    labelAnchor: Offset(140, 1264),
+    maxLabelWidth: 470,
+    labelWidthFactor: 0.64,
+    icon: Icons.beach_access_rounded,
+  ),
+];
+
+String _islandMapTitle(_IslandCatalogEntry island, int slotIndex) {
+  return switch (slotIndex) {
+    0 => 'Đảo Kho Báu',
+    1 => 'Đảo Tri Thức',
+    2 => 'Đảo Phiêu Lưu',
+    _ => island.name,
+  };
+}
+
+class _IslandLessonMapTab extends StatelessWidget {
+  const _IslandLessonMapTab({
+    required this.island,
+    required this.situations,
+    required this.isLoadingSituations,
+    required this.isPremium,
+    required this.activeLessonId,
+    required this.loadingSituationId,
+    required this.hasActiveLesson,
+    required this.canStartLesson,
+    required this.onBack,
+    required this.onLocked,
+    required this.onSelected,
+    required this.onStartLesson,
+  });
+
+  final _IslandCatalogEntry island;
+  final List<SituationSummary> situations;
+  final bool isLoadingSituations;
+  final bool isPremium;
+  final String? activeLessonId;
+  final int? loadingSituationId;
+  final bool hasActiveLesson;
+  final bool canStartLesson;
+  final VoidCallback onBack;
+  final ValueChanged<SituationSummary> onLocked;
+  final ValueChanged<SituationSummary> onSelected;
+  final VoidCallback onStartLesson;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: DuoColors.primaryYellow,
+      child: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: _IslandLessonHeader(island: island, onBack: onBack),
+          ),
+          Expanded(
+            child: _IslandLessonMapStage(
+              island: island,
+              situations: situations,
+              isLoadingSituations: isLoadingSituations,
+              isPremium: isPremium,
+              activeLessonId: activeLessonId,
+              loadingSituationId: loadingSituationId,
+              hasActiveLesson: hasActiveLesson,
+              canStartLesson: canStartLesson,
+              onLocked: onLocked,
+              onSelected: onSelected,
+              onStartLesson: onStartLesson,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IslandLessonHeader extends StatelessWidget {
+  const _IslandLessonHeader({required this.island, required this.onBack});
+
+  final _IslandCatalogEntry island;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 380;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            isCompact ? 14 : 20,
+            isCompact ? 8 : 12,
+            isCompact ? 14 : 20,
+            isCompact ? 10 : 14,
+          ),
+          child: SizedBox(
+            height: isCompact ? 56 : 64,
+            child: Row(
+              children: [
+                _CircleIconButton(
+                  label: 'Quay lại bản đồ đảo',
+                  icon: Icons.arrow_back_rounded,
+                  onPressed: onBack,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _islandLessonTitle(island),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isCompact ? 24 : 30,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                Container(
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.route_rounded,
+                        color: DuoColors.darkYellow,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${island.lessonCount} bài',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: GameColors.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _IslandLessonMapStage extends StatelessWidget {
+  const _IslandLessonMapStage({
+    required this.island,
+    required this.situations,
+    required this.isLoadingSituations,
+    required this.isPremium,
+    required this.activeLessonId,
+    required this.loadingSituationId,
+    required this.hasActiveLesson,
+    required this.canStartLesson,
+    required this.onLocked,
+    required this.onSelected,
+    required this.onStartLesson,
+  });
+
+  final _IslandCatalogEntry island;
+  final List<SituationSummary> situations;
+  final bool isLoadingSituations;
+  final bool isPremium;
+  final String? activeLessonId;
+  final int? loadingSituationId;
+  final bool hasActiveLesson;
+  final bool canStartLesson;
+  final ValueChanged<SituationSummary> onLocked;
+  final ValueChanged<SituationSummary> onSelected;
+  final VoidCallback onStartLesson;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            _islandLessonBackgroundAsset(island.islandId),
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFF003848).withValues(alpha: 0.12),
+                  Colors.transparent,
+                  const Color(0xFF003848).withValues(alpha: 0.18),
+                ],
+              ),
+            ),
+          ),
+          if (isLoadingSituations && situations.isEmpty)
+            const _IslandMapStatusOverlay(
+              icon: Icons.sync_rounded,
+              title: 'Đang tải',
+              body: 'Đang mở bản đồ bài học.',
+            )
+          else if (situations.isEmpty)
+            const _IslandMapStatusOverlay(
+              icon: Icons.auto_stories_outlined,
+              title: 'Chưa có bài học',
+              body: 'Đảo này chưa có bài học đã xuất bản.',
+            )
+          else
+            _IslandLessonPathOverlay(
+              islandId: island.islandId,
+              situations: situations,
+              isPremium: isPremium,
+              activeLessonId: activeLessonId,
+              loadingSituationId: loadingSituationId,
+              onLocked: onLocked,
+              onSelected: onSelected,
+            ),
+          if (hasActiveLesson)
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 18,
+              child: SafeArea(
+                top: false,
+                child: _PillButton(
+                  key: const ValueKey('start-lesson-button'),
+                  label: 'Bắt đầu bài học',
+                  icon: Icons.play_arrow_rounded,
+                  color: GameColors.banana,
+                  onPressed: canStartLesson ? onStartLesson : null,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IslandLessonPathOverlay extends StatelessWidget {
+  const _IslandLessonPathOverlay({
+    required this.islandId,
+    required this.situations,
+    required this.isPremium,
+    required this.activeLessonId,
+    required this.loadingSituationId,
+    required this.onLocked,
+    required this.onSelected,
+  });
+
+  final int islandId;
+  final List<SituationSummary> situations;
+  final bool isPremium;
+  final String? activeLessonId;
+  final int? loadingSituationId;
+  final ValueChanged<SituationSummary> onLocked;
+  final ValueChanged<SituationSummary> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pathPoints = _lessonPathPoints(
+          islandId: islandId,
+          count: situations.length,
+        );
+        final stageSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _IslandLessonPathPainter(points: pathPoints),
+              ),
+            ),
+            for (var index = 0; index < situations.length; index++)
+              _IslandLessonPathNodePositioner(
+                stageSize: stageSize,
+                point: pathPoints[index],
+                child: _IslandLessonPathNode(
+                  situation: situations[index],
+                  isSelected:
+                      activeLessonId ==
+                      'situation-${situations[index].situationId}',
+                  isLoading:
+                      loadingSituationId == situations[index].situationId,
+                  isUnlocked: _isSituationUnlocked(
+                    situations[index],
+                    isPremium,
+                  ),
+                  onTap: () =>
+                      _isSituationUnlocked(situations[index], isPremium)
+                      ? onSelected(situations[index])
+                      : onLocked(situations[index]),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _IslandLessonPathNodePositioner extends StatelessWidget {
+  const _IslandLessonPathNodePositioner({
+    required this.stageSize,
+    required this.point,
+    required this.child,
+  });
+
+  final Size stageSize;
+  final Offset point;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    const nodeWidth = 176.0;
+    const nodeHeight = 150.0;
+    final left = (stageSize.width * point.dx - nodeWidth / 2)
+        .clamp(8.0, math.max(8.0, stageSize.width - nodeWidth - 8))
+        .toDouble();
+    final top = (stageSize.height * point.dy - 48)
+        .clamp(8.0, math.max(8.0, stageSize.height - nodeHeight - 8))
+        .toDouble();
+
+    return Positioned(left: left, top: top, width: nodeWidth, child: child);
+  }
+}
+
+class _IslandLessonPathNode extends StatelessWidget {
+  const _IslandLessonPathNode({
+    required this.situation,
+    required this.isSelected,
+    required this.isLoading,
+    required this.isUnlocked,
+    required this.onTap,
+  });
+
+  final SituationSummary situation;
+  final bool isSelected;
+  final bool isLoading;
+  final bool isUnlocked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSelected
+        ? GameColors.safe
+        : isUnlocked
+        ? DuoColors.primaryYellow
+        : const Color(0xFFD7DCE2);
+    final foreground = isUnlocked ? GameColors.ink : const Color(0xFF87909D);
+    final lessonIcon = _situationIcon(situation);
+    final nodeSize = isSelected ? 84.0 : 74.0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: ValueKey('situation-${situation.situationId}'),
+            onTap: isLoading ? null : onTap,
+            customBorder: const CircleBorder(),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: nodeSize,
+              height: nodeSize,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.96),
+                  width: 7,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: isSelected ? 0.55 : 0.34),
+                    blurRadius: isSelected ? 26 : 16,
+                    offset: const Offset(0, 8),
+                  ),
+                  const BoxShadow(
+                    color: Color(0x3825324B),
+                    blurRadius: 12,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(23),
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    )
+                  : Icon(
+                      isSelected
+                          ? Icons.play_arrow_rounded
+                          : isUnlocked
+                          ? lessonIcon
+                          : Icons.lock_rounded,
+                      color: foreground,
+                      size: isSelected ? 40 : 33,
+                    ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 7),
+        Container(
+          constraints: const BoxConstraints(maxWidth: 144),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? GameColors.safe
+                : Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x2625324B),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            isSelected
+                ? 'START'
+                : isUnlocked
+                ? 'Bài ${situation.orderIndex}'
+                : 'PREMIUM',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Colors.white : GameColors.ink,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          situation.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            height: 1.12,
+            shadows: [
+              Shadow(
+                color: Color(0xB325324B),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IslandLessonPathPainter extends CustomPainter {
+  const _IslandLessonPathPainter({required this.points});
+
+  final List<Offset> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) {
+      return;
+    }
+
+    final path = Path()
+      ..moveTo(points.first.dx * size.width, points.first.dy * size.height);
+    for (var index = 1; index < points.length; index++) {
+      path.lineTo(
+        points[index].dx * size.width,
+        points[index].dy * size.height,
+      );
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF0A6B74).withValues(alpha: 0.24)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 26
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.78)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 12
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = DuoColors.primaryYellow.withValues(alpha: 0.72)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _IslandLessonPathPainter oldDelegate) {
+    return oldDelegate.points != points;
+  }
+}
+
+String _islandLessonTitle(_IslandCatalogEntry island) {
+  return switch (island.islandId) {
+    1 => 'Đảo Kho Báu',
+    2 => 'Đảo Tri Thức',
+    3 => 'Đảo Phiêu Lưu',
+    _ => island.name,
+  };
+}
+
+String _islandLessonBackgroundAsset(int islandId) {
+  return switch (islandId) {
+    1 => LessonAssets.island1Background,
+    2 => LessonAssets.island2Background,
+    3 => LessonAssets.island3Background,
+    _ => LessonAssets.island1Background,
+  };
+}
+
+List<Offset> _lessonPathPoints({required int islandId, required int count}) {
+  final anchors = switch (islandId) {
+    1 => const [Offset(0.50, 0.82), Offset(0.27, 0.58), Offset(0.70, 0.34)],
+    2 => const [Offset(0.47, 0.82), Offset(0.35, 0.57), Offset(0.58, 0.32)],
+    3 => const [Offset(0.58, 0.82), Offset(0.48, 0.58), Offset(0.33, 0.33)],
+    _ => const [Offset(0.50, 0.82), Offset(0.34, 0.58), Offset(0.66, 0.34)],
+  };
+
+  if (count <= anchors.length) {
+    return anchors.take(count).toList(growable: false);
+  }
+
+  return List<Offset>.generate(count, (index) {
+    final t = count == 1 ? 0.0 : index / (count - 1);
+    final y = 0.82 - t * 0.52;
+    final x = 0.5 + math.sin(t * math.pi * 2.2) * 0.24;
+    return Offset(x.clamp(0.18, 0.82).toDouble(), y);
+  }, growable: false);
+}
+
+// ignore: unused_element
 class _CatalogTopBar extends StatelessWidget {
   const _CatalogTopBar({
     required this.profile,
     required this.plan,
     required this.onUpgradePressed,
+    // ignore: unused_element_parameter
     this.audioController,
   });
 
@@ -1586,6 +2594,7 @@ bool _isSituationUnlocked(SituationSummary situation, bool isPremium) {
   return isPremium || !_requiresPremium(situation);
 }
 
+// ignore: unused_element
 class _CatalogContentFrame extends StatelessWidget {
   const _CatalogContentFrame({
     required this.isLoading,
@@ -1649,6 +2658,7 @@ class _CatalogContentFrame extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _IslandCatalogViewNew extends StatelessWidget {
   const _IslandCatalogViewNew({
     required this.islands,
@@ -1873,6 +2883,7 @@ class _IslandCatalogView extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _IslandSituationViewNew extends StatelessWidget {
   const _IslandSituationViewNew({
     required this.island,
@@ -3140,7 +4151,6 @@ enum LessonPhase {
   parent,
 }
 
-const _celebrationDuration = Duration(milliseconds: 5200);
 const _rewardBurstDuration = Duration(milliseconds: 1250);
 
 enum ChoiceTone { safe, danger }
@@ -3163,6 +4173,11 @@ class GameColors {
 class LessonAssets {
   const LessonAssets._();
 
+  static const logo = 'assets/images/logo/logo smartstep-01.png';
+  static const islandBackground = 'assets/images/inslandBackground.png';
+  static const island1Background = 'assets/images/Insland1_Background.png';
+  static const island2Background = 'assets/images/Insland2_Background.png';
+  static const island3Background = 'assets/images/Insland3_Background.png';
   static const livingRoom = 'assets/images/living_room.jpg';
   static const islandIcon = 'assets/images/Island_Icon.png';
   static const safetyIsland = 'assets/images/island/safety-island.png';
@@ -3719,7 +4734,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     });
 
     if (shouldPlayCelebration) {
-      _audioController?.playCelebration(maxDuration: _celebrationDuration);
+      _audioController?.playCelebration();
     } else if (shouldPlayWarning) {
       _audioController?.playWarning();
     }
@@ -6690,31 +7705,74 @@ class _WrongScreenBorderPainter extends CustomPainter {
     final rect = Offset.zero & size;
     final radius = Radius.circular(math.min(36, size.shortestSide * 0.08));
     final rrect = RRect.fromRectAndRadius(rect.deflate(8), radius);
-    final red = const Color(0xFFFF3535);
+    final red = const Color(0xFFFF2424);
+    final horizontalDepth = size.width / 3;
+    final verticalDepth = size.height / 3;
+    final edgeAlpha = 0.22 + flash * 0.36;
+    final midAlpha = 0.10 + flash * 0.22;
+    final edgeColors = [
+      red.withValues(alpha: edgeAlpha),
+      red.withValues(alpha: midAlpha),
+      red.withValues(alpha: 0),
+    ];
+    const edgeStops = [0.0, 0.55, 1.0];
+
+    void drawWarningBand(Rect band, Offset start, Offset end) {
+      canvas.drawRect(
+        band,
+        Paint()..shader = ui.Gradient.linear(start, end, edgeColors, edgeStops),
+      );
+    }
+
+    drawWarningBand(
+      Rect.fromLTWH(0, 0, horizontalDepth, size.height),
+      Offset.zero,
+      Offset(horizontalDepth, 0),
+    );
+    drawWarningBand(
+      Rect.fromLTWH(
+        size.width - horizontalDepth,
+        0,
+        horizontalDepth,
+        size.height,
+      ),
+      Offset(size.width, 0),
+      Offset(size.width - horizontalDepth, 0),
+    );
+    drawWarningBand(
+      Rect.fromLTWH(0, 0, size.width, verticalDepth),
+      Offset.zero,
+      Offset(0, verticalDepth),
+    );
+    drawWarningBand(
+      Rect.fromLTWH(0, size.height - verticalDepth, size.width, verticalDepth),
+      Offset(0, size.height),
+      Offset(0, size.height - verticalDepth),
+    );
 
     canvas.drawRRect(
       rrect,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 24 + flash * 14
-        ..color = red.withValues(alpha: 0.08 + flash * 0.10),
+        ..strokeWidth = 38 + flash * 22
+        ..color = red.withValues(alpha: 0.18 + flash * 0.24),
     );
 
     canvas.drawRRect(
       rrect.deflate(4),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 9 + flash * 5
-        ..color = red.withValues(alpha: 0.34 + flash * 0.34),
+        ..strokeWidth = 13 + flash * 8
+        ..color = red.withValues(alpha: 0.56 + flash * 0.34),
     );
 
     final cornerPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 5 + flash * 3
+      ..strokeWidth = 7 + flash * 4
       ..strokeCap = StrokeCap.round
-      ..color = Colors.white.withValues(alpha: 0.18 + flash * 0.22);
-    const cornerLength = 54.0;
-    const inset = 22.0;
+      ..color = Colors.white.withValues(alpha: 0.34 + flash * 0.34);
+    const cornerLength = 76.0;
+    const inset = 26.0;
 
     canvas.drawLine(
       const Offset(inset, inset),

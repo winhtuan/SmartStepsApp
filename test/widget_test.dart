@@ -52,17 +52,16 @@ void main() {
     expect(find.byKey(const ValueKey('island-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('island-2')), findsOneWidget);
 
-    await tester.drag(find.byType(ListView).first, const Offset(0, -180));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('island-1')));
     await tester.tap(find.byKey(const ValueKey('island-1')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
 
     expect(find.byKey(const ValueKey('situation-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('situation-2')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('situation-1')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
 
     expect(situationService.detailCalls, 1);
     expect(find.text(_fakeSummary.title), findsWidgets);

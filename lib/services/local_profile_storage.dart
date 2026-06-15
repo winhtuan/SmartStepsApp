@@ -2,16 +2,18 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/app_feedback.dart';
 import '../models/child_profile.dart';
+import 'platform_storage.dart';
 
 class LocalProfileStorage {
   const LocalProfileStorage({Directory? directoryOverride})
     : _directoryOverride = directoryOverride;
 
   final Directory? _directoryOverride;
+
+  PlatformStorage get _storage => createPlatformStorage(_directoryOverride);
 
   Future<bool> hasProfile() async {
     final profile = await readProfile();
@@ -20,12 +22,11 @@ class LocalProfileStorage {
 
   Future<ChildProfile?> readProfile() async {
     try {
-      final file = await _profileFile();
-      if (!await file.exists()) {
+      final content = await _storage.readString('child_profile');
+      if (content == null) {
         return null;
       }
 
-      final content = await file.readAsString();
       final json = jsonDecode(content);
       if (json is! Map<String, dynamic>) {
         return null;
@@ -40,10 +41,8 @@ class LocalProfileStorage {
   }
 
   Future<void> saveProfile(ChildProfile profile) async {
-    final file = await _profileFile();
-    await file.parent.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(encoder.convert(profile.toJson()), flush: true);
+    await _storage.writeString('child_profile', encoder.convert(profile.toJson()));
   }
 
   Future<ChildProfile> activatePremium(String code) async {
@@ -139,12 +138,11 @@ class LocalProfileStorage {
 
   Future<List<AppFeedbackEntry>> readAppFeedbackEntries() async {
     try {
-      final file = await _feedbackFile();
-      if (!await file.exists()) {
+      final content = await _storage.readString('app_feedback');
+      if (content == null) {
         return const [];
       }
 
-      final content = await file.readAsString();
       final json = jsonDecode(content);
       if (json is! List) {
         return const [];
@@ -164,14 +162,12 @@ class LocalProfileStorage {
   Future<void> saveAppFeedback(AppFeedbackEntry feedback) async {
     final entries = await readAppFeedbackEntries();
     final updatedEntries = [...entries, feedback];
-    final file = await _feedbackFile();
-    await file.parent.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(
+    await _storage.writeString(
+      'app_feedback',
       encoder.convert(
         updatedEntries.map((entry) => entry.toJson()).toList(growable: false),
       ),
-      flush: true,
     );
 
     final promptState = await readFeedbackPromptState();
@@ -185,12 +181,11 @@ class LocalProfileStorage {
 
   Future<AppFeedbackPromptState> readFeedbackPromptState() async {
     try {
-      final file = await _feedbackPromptStateFile();
-      if (!await file.exists()) {
+      final content = await _storage.readString('feedback_prompt_state');
+      if (content == null) {
         return const AppFeedbackPromptState();
       }
 
-      final content = await file.readAsString();
       final json = jsonDecode(content);
       if (json is! Map<String, dynamic>) {
         return const AppFeedbackPromptState();
@@ -238,45 +233,11 @@ class LocalProfileStorage {
   Future<void> _saveFeedbackPromptState(
     AppFeedbackPromptState promptState,
   ) async {
-    final file = await _feedbackPromptStateFile();
-    await file.parent.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(
+    await _storage.writeString(
+      'feedback_prompt_state',
       encoder.convert(promptState.toJson()),
-      flush: true,
     );
-  }
-
-  Future<File> _profileFile() async {
-    final directory = _directoryOverride ?? await _profileDirectory();
-    return File('${directory.path}${Platform.pathSeparator}child_profile.json');
-  }
-
-  Future<File> _feedbackFile() async {
-    final directory = _directoryOverride ?? await _profileDirectory();
-    return File('${directory.path}${Platform.pathSeparator}app_feedback.json');
-  }
-
-  Future<File> _feedbackPromptStateFile() async {
-    final directory = _directoryOverride ?? await _profileDirectory();
-    return File(
-      '${directory.path}${Platform.pathSeparator}feedback_prompt_state.json',
-    );
-  }
-
-  Future<Directory> _profileDirectory() async {
-    try {
-      final documentsDirectory = await getApplicationDocumentsDirectory();
-      return Directory(
-        '${documentsDirectory.path}${Platform.pathSeparator}SmartSteps',
-      );
-    } catch (error, stackTrace) {
-      debugPrint('SmartSteps profile directory fallback: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      return Directory(
-        '${Directory.systemTemp.path}${Platform.pathSeparator}SmartSteps',
-      );
-    }
   }
 }
 
