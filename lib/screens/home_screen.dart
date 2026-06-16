@@ -5930,12 +5930,13 @@ class _QuestionOverlay extends StatefulWidget {
 }
 
 class _QuestionOverlayState extends State<_QuestionOverlay> {
-  late final AudioPlayer _voicePlayer;
+  late AudioPlayer _voicePlayer;
   String? _activeNarrationId;
   String? _focusedChoiceId;
   bool _hasPlayedOpeningNarration = false;
   int _openingSequenceId = 0;
   int _voiceRequestId = 0;
+  int _voicePlayerGeneration = 0;
 
   List<({String id, String asset, String text})> get _narrationQueue {
     return [
@@ -5968,7 +5969,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   void initState() {
     super.initState();
     _activeNarrationId = widget.isParentReadingMode ? null : 'question';
-    _voicePlayer = AudioPlayer();
+    _voicePlayer = _createVoicePlayer();
     unawaited(_prepareVoicePlayer());
     if (!widget.isParentReadingMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -6042,13 +6043,25 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     try {
       await _voicePlayer.setPlayerMode(PlayerMode.mediaPlayer);
       await _voicePlayer.setReleaseMode(ReleaseMode.stop);
-      await _voicePlayer.setVolume(
-        smartStepsIsIosWeb ? _iosWebVoiceVolume : _voiceVolume,
-      );
+      await _voicePlayer.setVolume(_voiceVolumeForPlatform);
     } catch (error, stackTrace) {
       debugPrint('SmartSteps voice player setup failed: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
+  }
+
+  double get _voiceVolumeForPlatform =>
+      smartStepsIsIosWeb ? _iosWebVoiceVolume : _voiceVolume;
+
+  AudioPlayer _createVoicePlayer() {
+    if (!smartStepsIsIosWeb) {
+      return AudioPlayer();
+    }
+
+    _voicePlayerGeneration += 1;
+    return AudioPlayer(
+      playerId: 'smartsteps-ios-voice-$_voicePlayerGeneration',
+    );
   }
 
   Future<void> _setVoicePlaybackRate() async {
@@ -6257,38 +6270,12 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
         return false;
       }
 
-      if (remoteVoiceUrl == null) {
-        if (!asset.trim().startsWith('assets/')) {
-          debugPrint('SmartSteps voice has no signed URL: $assetPath');
-          return false;
-        }
-
-        await rootBundle.load(asset);
-        if (!mounted || requestId != _voiceRequestId) {
-          return false;
-        }
-        await _voicePlayer.setSourceAsset(assetPath, mimeType: 'audio/mpeg');
-      } else {
-        await _voicePlayer.setSource(
-          UrlSource(remoteVoiceUrl.toString(), mimeType: 'audio/mpeg'),
-        );
-      }
-      if (!mounted || requestId != _voiceRequestId) {
-        return false;
-      }
-      await _setVoicePlaybackRate();
-      if (!mounted || requestId != _voiceRequestId) {
-        return false;
-      }
-      final startedFuture = _voicePlayer.onPlayerStateChanged
-          .where((state) => state == PlayerState.playing)
-          .first
-          .timeout(_voiceStartTimeout, onTimeout: () => _voicePlayer.state);
-      await _voicePlayer.resume();
-      final startState = await startedFuture;
-      final didStart =
-          startState == PlayerState.playing ||
-          _voicePlayer.state == PlayerState.playing;
+      final didStart = await _startVoicePlayback(
+        asset: asset,
+        assetPath: assetPath,
+        remoteVoiceUrl: remoteVoiceUrl,
+        requestId: requestId,
+      );
       if (!didStart) {
         debugPrint('SmartSteps voice did not enter playing state: $assetPath');
         return false;
@@ -6328,6 +6315,87 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     }
   }
 
+  Future<bool> _startVoicePlayback({
+    required String asset,
+    required String assetPath,
+    required Uri? remoteVoiceUrl,
+    required int requestId,
+  }) async {
+    if (smartStepsIsIosWeb) {
+      await _replaceVoicePlayerForNextClip();
+      if (!mounted || requestId != _voiceRequestId) {
+        return false;
+      }
+
+      final source = await _voiceSourceFor(
+        asset: asset,
+        assetPath: assetPath,
+        remoteVoiceUrl: remoteVoiceUrl,
+      );
+      if (source == null || !mounted || requestId != _voiceRequestId) {
+        return false;
+      }
+
+      final startedFuture = _voicePlayer.onPlayerStateChanged
+          .where((state) => state == PlayerState.playing)
+          .first
+          .timeout(_voiceStartTimeout, onTimeout: () => _voicePlayer.state);
+      await _voicePlayer.play(
+        source,
+        volume: _voiceVolumeForPlatform,
+        ctx: _voiceAudioContext,
+        mode: PlayerMode.mediaPlayer,
+      );
+      final startState = await startedFuture;
+      return startState == PlayerState.playing ||
+          _voicePlayer.state == PlayerState.playing;
+    }
+
+    final source = await _voiceSourceFor(
+      asset: asset,
+      assetPath: assetPath,
+      remoteVoiceUrl: remoteVoiceUrl,
+    );
+    if (source == null || !mounted || requestId != _voiceRequestId) {
+      return false;
+    }
+
+    await _voicePlayer.setSource(source);
+    if (!mounted || requestId != _voiceRequestId) {
+      return false;
+    }
+    await _setVoicePlaybackRate();
+    if (!mounted || requestId != _voiceRequestId) {
+      return false;
+    }
+    final startedFuture = _voicePlayer.onPlayerStateChanged
+        .where((state) => state == PlayerState.playing)
+        .first
+        .timeout(_voiceStartTimeout, onTimeout: () => _voicePlayer.state);
+    await _voicePlayer.resume();
+    final startState = await startedFuture;
+    return startState == PlayerState.playing ||
+        _voicePlayer.state == PlayerState.playing;
+  }
+
+  Future<Source?> _voiceSourceFor({
+    required String asset,
+    required String assetPath,
+    required Uri? remoteVoiceUrl,
+  }) async {
+    if (remoteVoiceUrl != null) {
+      return UrlSource(remoteVoiceUrl.toString(), mimeType: 'audio/mpeg');
+    }
+
+    if (!asset.trim().startsWith('assets/')) {
+      debugPrint('SmartSteps voice has no signed URL: $assetPath');
+      return null;
+    }
+
+    await rootBundle.load(asset);
+    return AssetSource(assetPath, mimeType: 'audio/mpeg');
+  }
+
   Future<void> _resetVoicePlayerForNextClip() async {
     try {
       await _voicePlayer.stop();
@@ -6337,6 +6405,18 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
       debugPrint('SmartSteps voice reset failed: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
+  }
+
+  Future<void> _replaceVoicePlayerForNextClip() async {
+    try {
+      await _voicePlayer.stop();
+      await _voicePlayer.dispose();
+    } catch (_) {
+      // Keep replacement best-effort for Safari's stricter audio lifecycle.
+    }
+
+    _voicePlayer = _createVoicePlayer();
+    await _prepareVoicePlayer();
   }
 
   @override
