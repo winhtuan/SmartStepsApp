@@ -4526,6 +4526,7 @@ const _voiceStartTimeout = Duration(milliseconds: 4000);
 const _voiceSequenceGap = Duration(milliseconds: 360);
 const _questionFallbackDuration = Duration(milliseconds: 3600);
 const _choiceFallbackDuration = Duration(milliseconds: 2300);
+const _voiceCompletionGrace = Duration(milliseconds: 420);
 const _outsidePortraitOrientations = [
   DeviceOrientation.portraitUp,
   DeviceOrientation.portraitDown,
@@ -6265,9 +6266,6 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
           .where((state) => state == PlayerState.playing)
           .first
           .timeout(_voiceStartTimeout, onTimeout: () => _voicePlayer.state);
-      final completeFuture = _voicePlayer.onPlayerComplete.first
-          .then<void>((_) {})
-          .timeout(_voicePlaybackTimeout, onTimeout: () {});
       await _voicePlayer.resume();
       final startState = await startedFuture;
       final didStart =
@@ -6280,7 +6278,10 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
       debugPrint('SmartSteps voice playing: $assetPath');
       final minimumHold = _fallbackDurationFor(id);
       final stopwatch = Stopwatch()..start();
-      await completeFuture;
+      await Future.any<void>([
+        _voicePlayer.onPlayerComplete.first.then<void>((_) {}),
+        Future<void>.delayed(minimumHold + _voiceCompletionGrace),
+      ]).timeout(_voicePlaybackTimeout, onTimeout: () {});
       stopwatch.stop();
       if (stopwatch.elapsed < minimumHold &&
           mounted &&
@@ -6487,6 +6488,7 @@ class _SimpleQuestionPrompt extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: SmartStepsPressEffect(
+          playSound: false,
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(28),
@@ -6567,6 +6569,7 @@ class _KidChoiceCard extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           child: SmartStepsPressEffect(
+            playSound: false,
             child: InkWell(
               onTap: onTap,
               borderRadius: BorderRadius.circular(30),
