@@ -17,55 +17,50 @@ jobs:
   deploy-web:
     name: Build and deploy web artifact
     runs-on: [self-hosted, Windows]
+
     env:
-      FLUTTER_BIN: C:\Users\winhtuan\flutter\bin
+      FLUTTER_BIN: "C:\Users\winhtuan\flutter\bin"
 
     steps:
       - name: Checkout SmartStepsApp
         uses: actions/checkout@v4
 
       - name: Add Flutter to PATH
-        shell: powershell
+        shell: cmd
         run: |
-          Write-Host "Current user:"
+          echo Current user:
           whoami
 
-          Write-Host "Current location:"
-          Get-Location
+          echo Current directory:
+          cd
 
-          Write-Host "FLUTTER_BIN=$env:FLUTTER_BIN"
+          echo FLUTTER_BIN=%FLUTTER_BIN%
+          echo Checking: %FLUTTER_BIN%\flutter.bat
 
-          $flutterBat = Join-Path $env:FLUTTER_BIN "flutter.bat"
-          Write-Host "Checking: $flutterBat"
+          if not exist "%FLUTTER_BIN%\flutter.bat" (
+            echo Flutter not found at %FLUTTER_BIN%\flutter.bat
+            echo Folder content:
+            dir "%FLUTTER_BIN%"
+            exit /b 1
+          )
 
-          Write-Host "Test path result:"
-          Test-Path $flutterBat
-
-          if (!(Test-Path $flutterBat)) {
-            Write-Host "Folder content:"
-            if (Test-Path $env:FLUTTER_BIN) {
-              Get-ChildItem $env:FLUTTER_BIN
-            } else {
-              Write-Host "FLUTTER_BIN folder not found"
-            }
-
-            exit 1
-          }
-
-          Add-Content -Path $env:GITHUB_PATH -Value $env:FLUTTER_BIN
-          Write-Host "Flutter added to PATH"
+          echo %FLUTTER_BIN%>> "%GITHUB_PATH%"
+          echo Flutter added to PATH
 
       - name: Verify Flutter
         shell: cmd
-        run: flutter --version
+        run: |
+          flutter --version
 
       - name: Install dependencies
         shell: cmd
-        run: flutter pub get
+        run: |
+          flutter pub get
 
       - name: Build Flutter web
         shell: cmd
-        run: flutter build web --base-href "/smartsteps-v2/" --release --dart-define=FLUTTER_WEB_AUTO_DETECT=false
+        run: |
+          flutter build web --base-href "/smartsteps-v2/" --release --dart-define=FLUTTER_WEB_AUTO_DETECT=false
 
       - name: Checkout SmartSteps v2 deploy repository
         uses: actions/checkout@v4
@@ -77,9 +72,15 @@ jobs:
       - name: Deploy to smartsteps-v2 repository
         shell: cmd
         run: |
-          if not exist "%GITHUB_WORKSPACE%\build\web" exit /b 1
+          if not exist "%GITHUB_WORKSPACE%\build\web" (
+            echo Build folder not found: %GITHUB_WORKSPACE%\build\web
+            exit /b 1
+          )
+
           cd /d "%GITHUB_WORKSPACE%\smartsteps-v2"
+
           git clean -fdx
+
           xcopy "%GITHUB_WORKSPACE%\build\web\*" "%GITHUB_WORKSPACE%\smartsteps-v2\" /E /H /Y /I
 
       - name: Commit and push smartsteps-v2
@@ -91,6 +92,11 @@ jobs:
 
           git add --all
 
-          git diff --cached --quiet && exit /b 0
+          git diff --cached --quiet
+          if %ERRORLEVEL% EQU 0 (
+            echo No changes to commit
+            exit /b 0
+          )
+
           git commit -m "Deploy SmartSteps web build from %GITHUB_SHA%"
           git push
