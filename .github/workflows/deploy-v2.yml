@@ -47,6 +47,12 @@ jobs:
           echo %FLUTTER_BIN%>> "%GITHUB_PATH%"
           echo Flutter added to PATH
 
+      - name: Trust Flutter SDK git directory
+        shell: cmd
+        run: |
+          git config --global --add safe.directory F:/EXE/flutter
+          git config --global --get-all safe.directory
+
       - name: Verify Flutter
         shell: cmd
         run: |
