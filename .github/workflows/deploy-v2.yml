@@ -17,21 +17,31 @@ jobs:
   deploy-web:
     name: Build and deploy web artifact
     runs-on: [self-hosted, Windows]
+    env:
+      FLUTTER_BIN: C:\Users\winhtuan\flutter\bin
 
     steps:
       - name: Checkout SmartStepsApp
         uses: actions/checkout@v4
 
+      - name: Add Flutter to PATH
+        shell: powershell
+        run: |
+          if (!(Test-Path -LiteralPath $env:FLUTTER_BIN)) {
+            throw "Flutter bin directory not found: $env:FLUTTER_BIN"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $env:FLUTTER_BIN
+
       - name: Verify Flutter
-        shell: pwsh
+        shell: powershell
         run: flutter --version
 
       - name: Install dependencies
-        shell: pwsh
+        shell: powershell
         run: flutter pub get
 
       - name: Build Flutter web
-        shell: pwsh
+        shell: powershell
         run: flutter build web --base-href "/smartsteps-v2/" --release --dart-define=FLUTTER_WEB_AUTO_DETECT=false
 
       - name: Checkout SmartSteps v2 deploy repository
@@ -42,7 +52,7 @@ jobs:
           path: smartsteps-v2
 
       - name: Deploy to smartsteps-v2 repository
-        shell: pwsh
+        shell: powershell
         run: |
           $source = Join-Path $env:GITHUB_WORKSPACE 'build\web'
           $target = Join-Path $env:GITHUB_WORKSPACE 'smartsteps-v2'
@@ -60,7 +70,7 @@ jobs:
           Write-Host "Prepared SmartSteps web build in $target"
 
       - name: Commit and push smartsteps-v2
-        shell: pwsh
+        shell: powershell
         working-directory: smartsteps-v2
         run: |
           git config user.name "github-actions[bot]"
