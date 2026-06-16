@@ -4227,6 +4227,7 @@ class SafetyLesson {
     required this.openingHint,
     required this.inspectQuestion,
     required this.questionVoice,
+    this.openingNarration,
     required this.videoIntro,
     required this.videoCorrect,
     required this.videoWrong,
@@ -4252,6 +4253,7 @@ class SafetyLesson {
   final String openingHint;
   final String inspectQuestion;
   final LessonVoice questionVoice;
+  final LessonOpeningNarration? openingNarration;
   final LessonVideoCopy videoIntro;
   final LessonVideoCopy videoCorrect;
   final LessonVideoCopy videoWrong;
@@ -4288,6 +4290,20 @@ class LessonVoice {
 
   final String asset;
   final String text;
+}
+
+class LessonOpeningNarration {
+  const LessonOpeningNarration({required this.asset, required this.cues});
+
+  final String asset;
+  final List<LessonNarrationCue> cues;
+}
+
+class LessonNarrationCue {
+  const LessonNarrationCue({required this.id, required this.duration});
+
+  final String id;
+  final Duration duration;
 }
 
 class LessonChoice {
@@ -4336,6 +4352,8 @@ SafetyLesson _lessonFromSituation(SituationDetail situation) {
       situation.intro ??
       situation.title;
   final correctAnswer = flashcard?.correctAnswer.toUpperCase() ?? 'B';
+  final choiceAId = correctAnswer == 'A' ? correctChoiceId : 'option-a';
+  final choiceBId = correctAnswer == 'B' ? correctChoiceId : 'option-b';
   final skill = situation.skills.isNotEmpty ? situation.skills.first : null;
   final parentReview = situation.parentReview;
 
@@ -4355,6 +4373,13 @@ SafetyLesson _lessonFromSituation(SituationDetail situation) {
     questionVoice: LessonVoice(
       asset: flashcard?.questionVoiceUrl ?? '',
       text: question,
+    ),
+    openingNarration: _openingNarrationFor(
+      questionVoice: flashcard?.questionVoiceUrl,
+      optionAVoice: flashcard?.optionAVoiceUrl,
+      optionBVoice: flashcard?.optionBVoiceUrl,
+      choiceAId: choiceAId,
+      choiceBId: choiceBId,
     ),
     videoIntro: _videoCopyFromStep(
       step: introStep,
@@ -4389,14 +4414,14 @@ SafetyLesson _lessonFromSituation(SituationDetail situation) {
     learningGoals: _learningGoalsFor(situation),
     choices: [
       _choiceFromFlashcard(
-        id: correctAnswer == 'A' ? correctChoiceId : 'option-a',
+        id: choiceAId,
         label: flashcard?.optionA ?? 'Lựa chọn A',
         voiceUrl: flashcard?.optionAVoiceUrl,
         imageAsset: flashcard?.optionAImageUrl,
         isCorrect: correctAnswer == 'A',
       ),
       _choiceFromFlashcard(
-        id: correctAnswer == 'B' ? correctChoiceId : 'option-b',
+        id: choiceBId,
         label: flashcard?.optionB ?? 'Lựa chọn B',
         voiceUrl: flashcard?.optionBVoiceUrl,
         imageAsset: flashcard?.optionBImageUrl,
@@ -4461,6 +4486,85 @@ LessonChoice _choiceFromFlashcard({
     tone: isCorrect ? ChoiceTone.safe : ChoiceTone.danger,
     isCorrect: isCorrect,
   );
+}
+
+LessonOpeningNarration? _openingNarrationFor({
+  required String? questionVoice,
+  required String? optionAVoice,
+  required String? optionBVoice,
+  required String choiceAId,
+  required String choiceBId,
+}) {
+  final key = [questionVoice, optionAVoice, optionBVoice].join('|');
+  final cues = <LessonNarrationCue>[
+    LessonNarrationCue(
+      id: 'question',
+      duration: _combinedQuestionDurationFor(key),
+    ),
+    LessonNarrationCue(
+      id: choiceAId,
+      duration: _combinedChoiceADurationFor(key),
+    ),
+    LessonNarrationCue(
+      id: choiceBId,
+      duration: _combinedChoiceBDurationFor(key),
+    ),
+  ];
+
+  return switch (key) {
+    'assets/voices/Safety_smallitems/question.mp3|assets/voices/Safety_smallitems/choice-put-mouth.mp3|assets/voices/Safety_smallitems/choice-ask-adult.mp3' =>
+      LessonOpeningNarration(
+        asset: 'assets/voices/Safety_smallitems/opening-narration.mp3',
+        cues: cues,
+      ),
+    'assets/voices/Safety_stranger/question_l3.mp3|assets/voices/Safety_stranger/wrong_l3.mp3|assets/voices/Safety_stranger/correct_l3.mp3' =>
+      LessonOpeningNarration(
+        asset: 'assets/voices/Safety_stranger/opening-narration.mp3',
+        cues: cues,
+      ),
+    'assets/voices/Crossroad/Question.mp3|assets/voices/Crossroad/wrong.mp3|assets/voices/Crossroad/correct.mp3' =>
+      LessonOpeningNarration(
+        asset: 'assets/voices/Crossroad/opening-narration.mp3',
+        cues: cues,
+      ),
+    _ => null,
+  };
+}
+
+Duration _combinedQuestionDurationFor(String key) {
+  return switch (key) {
+    'assets/voices/Safety_smallitems/question.mp3|assets/voices/Safety_smallitems/choice-put-mouth.mp3|assets/voices/Safety_smallitems/choice-ask-adult.mp3' =>
+      const Duration(milliseconds: 3240),
+    'assets/voices/Safety_stranger/question_l3.mp3|assets/voices/Safety_stranger/wrong_l3.mp3|assets/voices/Safety_stranger/correct_l3.mp3' =>
+      const Duration(milliseconds: 2660),
+    'assets/voices/Crossroad/Question.mp3|assets/voices/Crossroad/wrong.mp3|assets/voices/Crossroad/correct.mp3' =>
+      const Duration(milliseconds: 2490),
+    _ => _questionFallbackDuration,
+  };
+}
+
+Duration _combinedChoiceADurationFor(String key) {
+  return switch (key) {
+    'assets/voices/Safety_smallitems/question.mp3|assets/voices/Safety_smallitems/choice-put-mouth.mp3|assets/voices/Safety_smallitems/choice-ask-adult.mp3' =>
+      const Duration(milliseconds: 1370),
+    'assets/voices/Safety_stranger/question_l3.mp3|assets/voices/Safety_stranger/wrong_l3.mp3|assets/voices/Safety_stranger/correct_l3.mp3' =>
+      const Duration(milliseconds: 3070),
+    'assets/voices/Crossroad/Question.mp3|assets/voices/Crossroad/wrong.mp3|assets/voices/Crossroad/correct.mp3' =>
+      const Duration(milliseconds: 1630),
+    _ => _choiceFallbackDuration,
+  };
+}
+
+Duration _combinedChoiceBDurationFor(String key) {
+  return switch (key) {
+    'assets/voices/Safety_smallitems/question.mp3|assets/voices/Safety_smallitems/choice-put-mouth.mp3|assets/voices/Safety_smallitems/choice-ask-adult.mp3' =>
+      const Duration(milliseconds: 940),
+    'assets/voices/Safety_stranger/question_l3.mp3|assets/voices/Safety_stranger/wrong_l3.mp3|assets/voices/Safety_stranger/correct_l3.mp3' =>
+      const Duration(milliseconds: 3580),
+    'assets/voices/Crossroad/Question.mp3|assets/voices/Crossroad/wrong.mp3|assets/voices/Crossroad/correct.mp3' =>
+      const Duration(milliseconds: 1180),
+    _ => _choiceFallbackDuration,
+  };
 }
 
 List<String> _learningGoalsFor(SituationDetail situation) {
@@ -6126,6 +6230,17 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     _hasPlayedOpeningNarration = true;
     final sequenceId = ++_openingSequenceId;
 
+    final openingNarration = widget.lesson.openingNarration;
+    if (smartStepsIsIosWeb && openingNarration != null) {
+      final didStart = await _playCombinedOpeningNarration(
+        openingNarration,
+        sequenceId,
+      );
+      if (didStart) {
+        return;
+      }
+    }
+
     await _precacheNarrationAssets();
 
     for (final item in _narrationQueue) {
@@ -6167,6 +6282,80 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
 
     _openingSequenceId++;
     await _playNarrationAsset(id, asset, text: text, clearWhenFinished: true);
+  }
+
+  Future<bool> _playCombinedOpeningNarration(
+    LessonOpeningNarration narration,
+    int sequenceId,
+  ) async {
+    if (narration.cues.isEmpty || widget.isParentReadingMode) {
+      return false;
+    }
+
+    final requestId = ++_voiceRequestId;
+    final assetPath = _voiceAssetPath(narration.asset);
+
+    try {
+      await rootBundle.load(narration.asset);
+      if (!mounted ||
+          sequenceId != _openingSequenceId ||
+          requestId != _voiceRequestId) {
+        return false;
+      }
+
+      setState(() {
+        _focusedChoiceId = null;
+        _activeNarrationId = narration.cues.first.id;
+      });
+
+      await _stopVoicePlayer();
+      if (!mounted ||
+          sequenceId != _openingSequenceId ||
+          requestId != _voiceRequestId) {
+        return false;
+      }
+
+      final didStart = await _startVoicePlayback(
+        asset: narration.asset,
+        assetPath: assetPath,
+        remoteVoiceUrl: null,
+        requestId: requestId,
+      );
+      if (!didStart) {
+        debugPrint('SmartSteps combined voice did not start: $assetPath');
+        return false;
+      }
+
+      for (final cue in narration.cues) {
+        if (!mounted ||
+            sequenceId != _openingSequenceId ||
+            requestId != _voiceRequestId) {
+          return true;
+        }
+
+        setState(() {
+          _activeNarrationId = cue.id;
+        });
+
+        await Future<void>.delayed(cue.duration);
+      }
+
+      if (mounted &&
+          sequenceId == _openingSequenceId &&
+          requestId == _voiceRequestId) {
+        setState(() {
+          _activeNarrationId = null;
+        });
+      }
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps combined voice failed for $assetPath: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (requestId == _voiceRequestId) {
+        await _stopVoicePlayer();
+      }
+      return false;
+    }
   }
 
   void _focusNarration(String id, String asset) {
