@@ -48,7 +48,8 @@ class SmartStepsAudioController extends ChangeNotifier
       _celebrationPlayer = AudioPlayer(
         playerId: 'smartsteps-celebration-applause',
       ),
-      _warningPlayer = AudioPlayer(playerId: 'smartsteps-warning-alert');
+      _warningPlayer = AudioPlayer(playerId: 'smartsteps-warning-alert'),
+      _voicePlayer = AudioPlayer(playerId: 'smartsteps-voice-player');
 
   static const _normalMusicVolume = 0.6;
   static const _duckedMusicVolume = 0.18;
@@ -58,6 +59,26 @@ class SmartStepsAudioController extends ChangeNotifier
   final AudioPlayer _successPlayer;
   final AudioPlayer _celebrationPlayer;
   final AudioPlayer _warningPlayer;
+  final AudioPlayer _voicePlayer;
+  AudioPlayer get voicePlayer => _voicePlayer;
+
+  bool _isVoicePlayerUnlocked = false;
+
+  Future<void> unlockVoicePlayer() async {
+    if (_isVoicePlayerUnlocked || _isDisposed) {
+      return;
+    }
+    try {
+      await _voicePlayer.setVolume(0.0);
+      await _voicePlayer.play(
+        UrlSource('data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'),
+      );
+      _isVoicePlayerUnlocked = true;
+    } catch (error, stackTrace) {
+      _logAudioFailure('voice player unlock', error, stackTrace);
+    }
+  }
+
   StreamSubscription<PlayerState>? _musicStateSubscription;
   Timer? _celebrationStopTimer;
 
@@ -99,6 +120,10 @@ class SmartStepsAudioController extends ChangeNotifier
   void playButtonTap() {
     if (!_isSfxEnabled) {
       return;
+    }
+
+    if (kIsWeb) {
+      unawaited(unlockVoicePlayer());
     }
 
     unawaited(HapticFeedback.selectionClick());
@@ -249,12 +274,17 @@ class SmartStepsAudioController extends ChangeNotifier
     unawaited(_successPlayer.dispose());
     unawaited(_celebrationPlayer.dispose());
     unawaited(_warningPlayer.dispose());
+    unawaited(_voicePlayer.dispose());
     super.dispose();
   }
 
   Future<void> ensureBackgroundMusicPlaying() async {
-    if (_isDisposed || _isPausedByLifecycle || !_isMusicEnabled) {
+    if (_isDisposed || _isPausedByLifecycle || !_isMusicEnabled || _duckDepth > 0) {
       return;
+    }
+
+    if (kIsWeb) {
+      unawaited(unlockVoicePlayer());
     }
 
     if (!_isStarted) {
@@ -284,7 +314,7 @@ class SmartStepsAudioController extends ChangeNotifier
       _duckDepth > 0 ? _duckedMusicVolume : _normalMusicVolume;
 
   Future<void> _resumeMusic() async {
-    if (!_isMusicEnabled) {
+    if (!_isMusicEnabled || _duckDepth > 0) {
       return;
     }
 
@@ -334,7 +364,11 @@ class SmartStepsAudioController extends ChangeNotifier
     }
 
     try {
-      await _musicPlayer.setVolume(_targetMusicVolume);
+      if (_duckDepth > 0) {
+        await _musicPlayer.pause();
+      } else {
+        await _musicPlayer.setVolume(_targetMusicVolume);
+      }
     } catch (error, stackTrace) {
       _logAudioFailure('background music volume', error, stackTrace);
     }

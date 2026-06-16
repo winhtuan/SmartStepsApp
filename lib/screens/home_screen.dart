@@ -5900,7 +5900,7 @@ class _QuestionOverlay extends StatefulWidget {
 }
 
 class _QuestionOverlayState extends State<_QuestionOverlay> {
-  late final AudioPlayer _voicePlayer;
+  late AudioPlayer _voicePlayer;
   String? _activeNarrationId;
   String? _focusedChoiceId;
   bool _hasPlayedOpeningNarration = false;
@@ -5931,13 +5931,18 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   void initState() {
     super.initState();
     _activeNarrationId = widget.isParentReadingMode ? null : 'question';
-    _voicePlayer = AudioPlayer();
-    unawaited(_prepareVoicePlayer());
     if (!widget.isParentReadingMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_playOpeningNarrationOnce());
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _voicePlayer = SmartStepsAudioScope.maybeOf(context)!.voicePlayer;
+    unawaited(_prepareVoicePlayer());
   }
 
   @override
@@ -5967,22 +5972,8 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   @override
   void dispose() {
     _voiceRequestId++;
-    unawaited(_stopAndDisposeVoicePlayer());
+    unawaited(_stopVoicePlayer());
     super.dispose();
-  }
-
-  Future<void> _stopAndDisposeVoicePlayer() async {
-    try {
-      await _voicePlayer.stop();
-    } catch (_) {
-      // Audio plugin calls can fail on test/desktop hosts.
-    }
-
-    try {
-      await _voicePlayer.dispose();
-    } catch (_) {
-      // Keep teardown best-effort on hosts without audio support.
-    }
   }
 
   Future<void> _stopVoicePlayer() async {
@@ -6013,7 +6004,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   }
 
   Future<void> _setVoicePlaybackRate() async {
-    if (defaultTargetPlatform == TargetPlatform.android) {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.android) {
       try {
         await _voicePlayer.setPlaybackRate(1.0);
       } catch (_) {}
