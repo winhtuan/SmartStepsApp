@@ -163,7 +163,9 @@ class SmartStepsAudioController extends ChangeNotifier
 
   void duckMusic() {
     _duckDepth += 1;
-    unawaited(_applyMusicVolume());
+    if (_isStarted && !_isDisposed && _isMusicEnabled) {
+      unawaited(_musicPlayer.pause());
+    }
   }
 
   void restoreMusic() {
@@ -174,8 +176,6 @@ class SmartStepsAudioController extends ChangeNotifier
       unawaited(ensureBackgroundMusicPlaying());
       return;
     }
-
-    unawaited(_applyMusicVolume());
   }
 
   void setMusicEnabled(bool isEnabled) {
@@ -328,17 +328,7 @@ class SmartStepsAudioController extends ChangeNotifier
     }
   }
 
-  Future<void> _applyMusicVolume() async {
-    if (!_isStarted || _isDisposed || !_isMusicEnabled) {
-      return;
-    }
 
-    try {
-      await _musicPlayer.setVolume(_targetMusicVolume);
-    } catch (error, stackTrace) {
-      _logAudioFailure('background music volume', error, stackTrace);
-    }
-  }
 
   Future<void> _playSfx(
     AudioPlayer player,

@@ -33,6 +33,26 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <div id="loading-indicator">
+    <div class="spinner"></div>
+    <p style="margin-top: 16px; font-weight: bold; color: #25324B;">Đang tải SmartSteps...</p>
+  </div>
+
+  <style>
+    #loading-indicator {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: #FFF1B5; /* Màu nền chủ đạo của app (DuoColors.background) */
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      font-family: sans-serif; z-index: 9999;
+    }
+    .spinner {
+      width: 50px; height: 50px;
+      border: 5px solid #f3f3f3; border-top: 5px solid #FF8F00; /* Màu cam vàng nổi bật */
+      border-radius: 50%; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

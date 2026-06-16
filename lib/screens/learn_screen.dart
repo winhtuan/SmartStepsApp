@@ -13,10 +13,10 @@ import 'app_feedback_dialog.dart';
 class _LearnMascots {
   const _LearnMascots._();
 
-  static const happyWave = 'assets/images/mascot/mascot-cat-happy-wave.png';
-  static const speaking = 'assets/images/mascot/mascot-cat-speaking.png';
-  static const confident = 'assets/images/mascot/mascot-cat-confident.png';
-  static const sulking = 'assets/images/mascot/mascot-cat-sulking.png';
+  static const happyWave = 'assets/images/mascot/mascot-cat-happy-wave.webp';
+  static const speaking = 'assets/images/mascot/mascot-cat-speaking.webp';
+  static const confident = 'assets/images/mascot/mascot-cat-confident.webp';
+  static const sulking = 'assets/images/mascot/mascot-cat-sulking.webp';
 }
 
 class ParentReportPage extends StatefulWidget {

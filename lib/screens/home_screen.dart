@@ -19,6 +19,7 @@ import '../utils/constants.dart';
 import '../widgets/duo_components.dart';
 import '../widgets/smartsteps_press_effect.dart';
 import 'app_feedback_dialog.dart';
+import 'app_preloader_screen.dart';
 import 'learn_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
@@ -144,10 +145,12 @@ class _SmartStepsAppState extends State<SmartStepsApp> {
       debugShowCheckedModeBanner: false,
       title: 'SmartSteps',
       theme: DuoTheme.light,
-      home: LoginScreen(
-        profileStorage: widget.profileStorage,
-        onLogin: _handleLogin,
-        onRegistrationCompleted: _handleRegistrationCompleted,
+      home: AppPreloaderScreen(
+        child: LoginScreen(
+          profileStorage: widget.profileStorage,
+          onLogin: _handleLogin,
+          onRegistrationCompleted: _handleRegistrationCompleted,
+        ),
       ),
     );
 
@@ -4188,28 +4191,28 @@ class GameColors {
 class LessonAssets {
   const LessonAssets._();
 
-  static const logo = 'assets/images/logo/logo smartstep-01.png';
-  static const islandBackground = 'assets/images/inslandBackground.png';
-  static const island1Background = 'assets/images/Insland1_Background.png';
-  static const island2Background = 'assets/images/Insland2_Background.png';
-  static const island3Background = 'assets/images/Insland3_Background.png';
-  static const livingRoom = 'assets/images/living_room.jpg';
-  static const islandIcon = 'assets/images/Island_Icon.png';
-  static const safetyIsland = 'assets/images/island/safety-island.png';
-  static const kid = 'assets/images/kid.png';
-  static const childHappy = 'assets/images/child-happy.png';
-  static const childChoking = 'assets/images/child-choking.png';
-  static const mother = 'assets/images/mother.png';
-  static const ball = 'assets/images/ball.png';
-  static const mascot = 'assets/images/mascot/mascot-cat-happy.png';
+  static const logo = 'assets/images/logo/logo smartstep-01.webp';
+  static const islandBackground = 'assets/images/inslandBackground.webp';
+  static const island1Background = 'assets/images/Insland1_Background.webp';
+  static const island2Background = 'assets/images/Insland2_Background.webp';
+  static const island3Background = 'assets/images/Insland3_Background.webp';
+  static const livingRoom = 'assets/images/living_room.webp';
+  static const islandIcon = 'assets/images/Island_Icon.webp';
+  static const safetyIsland = 'assets/images/island/safety-island.webp';
+  static const kid = 'assets/images/kid.webp';
+  static const childHappy = 'assets/images/child-happy.webp';
+  static const childChoking = 'assets/images/child-choking.webp';
+  static const mother = 'assets/images/mother.webp';
+  static const ball = 'assets/images/ball.webp';
+  static const mascot = 'assets/images/mascot/mascot-cat-happy.webp';
   static const mascotHappyWave =
-      'assets/images/mascot/mascot-cat-happy-wave.png';
-  static const mascotSpeaking = 'assets/images/mascot/mascot-cat-speaking.png';
-  static const mascotSinging = 'assets/images/mascot/mascot-cat-singing.png';
+      'assets/images/mascot/mascot-cat-happy-wave.webp';
+  static const mascotSpeaking = 'assets/images/mascot/mascot-cat-speaking.webp';
+  static const mascotSinging = 'assets/images/mascot/mascot-cat-singing.webp';
   static const mascotConfident =
-      'assets/images/mascot/mascot-cat-confident.png';
-  static const mascotSulking = 'assets/images/mascot/mascot-cat-sulking.png';
-  static const rewardStar = 'assets/images/reward-star.png';
+      'assets/images/mascot/mascot-cat-confident.webp';
+  static const mascotSulking = 'assets/images/mascot/mascot-cat-sulking.webp';
+  static const rewardStar = 'assets/images/reward-star.webp';
 }
 
 class SafetyLesson {
@@ -5215,22 +5218,29 @@ class _StoryClipStageState extends State<_StoryClipStage> {
     }
 
     try {
-      final remoteVideoUrl = await _mediaResolver.signedVideoUrlFor(
-        widget.copy,
-      );
-      controller = mediaAsset.startsWith('assets/')
-          ? VideoPlayerController.asset(
-              mediaAsset,
-              videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
-            )
-          : remoteVideoUrl != null
-          ? VideoPlayerController.networkUrl(
-              remoteVideoUrl,
-              videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
-            )
-          : throw const MediaConfigurationException(
-              'Backend did not return a signed media URL.',
-            );
+      if (mediaAsset.startsWith('http://') || mediaAsset.startsWith('https://')) {
+        controller = VideoPlayerController.networkUrl(
+          Uri.parse(mediaAsset),
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
+        );
+      } else {
+        final remoteVideoUrl = await _mediaResolver.signedVideoUrlFor(
+          widget.copy,
+        );
+        controller = mediaAsset.startsWith('assets/')
+            ? VideoPlayerController.asset(
+                mediaAsset,
+                videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
+              )
+            : remoteVideoUrl != null
+            ? VideoPlayerController.networkUrl(
+                remoteVideoUrl,
+                videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
+              )
+            : throw const MediaConfigurationException(
+                'Backend did not return a signed media URL.',
+              );
+      }
 
       controller
         ..addListener(_handleVideoTick)
@@ -5309,6 +5319,20 @@ class _StoryClipStageState extends State<_StoryClipStage> {
     });
 
     if (shouldFinish) {
+      unawaited(_pauseAndFinish());
+    }
+  }
+
+  Future<void> _pauseAndFinish() async {
+    final controller = _videoController;
+    if (controller != null &&
+        controller.value.isInitialized &&
+        controller.value.isPlaying) {
+      try {
+        await controller.pause();
+      } catch (_) {}
+    }
+    if (mounted) {
       widget.onFinished();
     }
   }
