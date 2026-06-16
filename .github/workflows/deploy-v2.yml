@@ -25,23 +25,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Add Flutter to PATH
-        shell: powershell
+        shell: cmd
         run: |
-          if (!(Test-Path -LiteralPath $env:FLUTTER_BIN)) {
-            throw "Flutter bin directory not found: $env:FLUTTER_BIN"
-          }
-          Add-Content -Path $env:GITHUB_PATH -Value $env:FLUTTER_BIN
+          if not exist "%FLUTTER_BIN%\flutter.bat" exit /b 1
+          echo %FLUTTER_BIN%>> "%GITHUB_PATH%"
 
       - name: Verify Flutter
-        shell: powershell
+        shell: cmd
         run: flutter --version
 
       - name: Install dependencies
-        shell: powershell
+        shell: cmd
         run: flutter pub get
 
       - name: Build Flutter web
-        shell: powershell
+        shell: cmd
         run: flutter build web --base-href "/smartsteps-v2/" --release --dart-define=FLUTTER_WEB_AUTO_DETECT=false
 
       - name: Checkout SmartSteps v2 deploy repository
@@ -52,25 +50,15 @@ jobs:
           path: smartsteps-v2
 
       - name: Deploy to smartsteps-v2 repository
-        shell: powershell
+        shell: cmd
         run: |
-          $source = Join-Path $env:GITHUB_WORKSPACE 'build\web'
-          $target = Join-Path $env:GITHUB_WORKSPACE 'smartsteps-v2'
-
-          if (!(Test-Path -LiteralPath $source)) {
-            throw "Build output not found: $source"
-          }
-
-          Get-ChildItem -LiteralPath $target -Force |
-            Where-Object { $_.Name -ne '.git' } |
-            Remove-Item -Recurse -Force
-
-          Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
-
-          Write-Host "Prepared SmartSteps web build in $target"
+          if not exist "%GITHUB_WORKSPACE%\build\web" exit /b 1
+          cd /d "%GITHUB_WORKSPACE%\smartsteps-v2"
+          git clean -fdx
+          xcopy "%GITHUB_WORKSPACE%\build\web\*" "%GITHUB_WORKSPACE%\smartsteps-v2\" /E /H /Y /I
 
       - name: Commit and push smartsteps-v2
-        shell: powershell
+        shell: cmd
         working-directory: smartsteps-v2
         run: |
           git config user.name "github-actions[bot]"
@@ -78,10 +66,6 @@ jobs:
 
           git add --all
 
-          if ((git status --porcelain).Length -eq 0) {
-            Write-Host "No changes to deploy."
-            exit 0
-          }
-
-          git commit -m "Deploy SmartSteps web build from $env:GITHUB_SHA"
+          git diff --cached --quiet && exit /b 0
+          git commit -m "Deploy SmartSteps web build from %GITHUB_SHA%"
           git push
