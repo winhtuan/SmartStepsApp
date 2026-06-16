@@ -20,6 +20,7 @@ jobs:
 
     env:
       FLUTTER_BIN: 'F:\EXE\flutter\bin'
+      FLUTTER_ROOT: 'F:\EXE\flutter'
 
     steps:
       - name: Checkout SmartStepsApp
@@ -52,6 +53,15 @@ jobs:
         run: |
           git config --global --add safe.directory F:/EXE/flutter
           git config --global --get-all safe.directory
+
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Pub\Cache
+          key: flutter-pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            flutter-pub-${{ runner.os }}-
 
       - name: Verify Flutter
         shell: cmd
