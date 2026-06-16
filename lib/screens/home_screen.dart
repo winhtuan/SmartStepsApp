@@ -16,6 +16,7 @@ import '../services/app_audio_controller.dart';
 import '../services/local_profile_storage.dart';
 import '../theme/duo_theme.dart';
 import '../utils/constants.dart';
+import '../utils/platform_environment.dart';
 import '../widgets/duo_components.dart';
 import '../widgets/smartsteps_press_effect.dart';
 import 'app_feedback_dialog.dart';
@@ -4522,7 +4523,9 @@ String? _rewardTitle(String? value) {
 const correctChoiceId = 'ask-adult';
 const _voicePlaybackRate = 0.82;
 const _voiceVolume = 0.82;
+const _iosWebVoiceVolume = 0.68;
 const _lessonVideoVolume = 0.86;
+const _iosWebLessonVideoVolume = 0.74;
 const _voicePlaybackTimeout = Duration(seconds: 12);
 const _voiceStartTimeout = Duration(milliseconds: 4000);
 const _voiceSequenceGap = Duration(milliseconds: 360);
@@ -5326,7 +5329,9 @@ class _StoryClipStageState extends State<_StoryClipStage> {
     await controller.seekTo(Duration.zero);
 
     try {
-      await controller.setVolume(_lessonVideoVolume);
+      await controller.setVolume(
+        smartStepsIsIosWeb ? _iosWebLessonVideoVolume : _lessonVideoVolume,
+      );
     } catch (_) {
       // Keep playback usable on platforms that do not expose volume control.
     }
@@ -6028,7 +6033,9 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     try {
       await _voicePlayer.setPlayerMode(PlayerMode.mediaPlayer);
       await _voicePlayer.setReleaseMode(ReleaseMode.stop);
-      await _voicePlayer.setVolume(_voiceVolume);
+      await _voicePlayer.setVolume(
+        smartStepsIsIosWeb ? _iosWebVoiceVolume : _voiceVolume,
+      );
     } catch (error, stackTrace) {
       debugPrint('SmartSteps voice player setup failed: $error');
       debugPrintStack(stackTrace: stackTrace);
