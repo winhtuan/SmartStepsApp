@@ -31,7 +31,8 @@ Future<void> runSmartStepsApp() async {
   await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
   await initializeSupabaseIfConfigured();
   await _configureGlobalAudio();
-  runApp(SmartStepsApp(enableAudio: true));
+  _configureImageCache();
+  runApp(const _SmartStepsBootstrapApp());
 }
 
 Future<void> _configureGlobalAudio() async {
@@ -40,6 +41,100 @@ Future<void> _configureGlobalAudio() async {
   } catch (error, stackTrace) {
     debugPrint('SmartSteps voice global audio context failed: $error');
     debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
+void _configureImageCache() {
+  final imageCache = PaintingBinding.instance.imageCache;
+  imageCache.maximumSize = math.max(imageCache.maximumSize, 180);
+  imageCache.maximumSizeBytes = math.max(
+    imageCache.maximumSizeBytes,
+    128 * 1024 * 1024,
+  );
+}
+
+class _SmartStepsBootstrapApp extends StatefulWidget {
+  const _SmartStepsBootstrapApp();
+
+  @override
+  State<_SmartStepsBootstrapApp> createState() =>
+      _SmartStepsBootstrapAppState();
+}
+
+class _SmartStepsBootstrapAppState extends State<_SmartStepsBootstrapApp> {
+  Future<void>? _preloadFuture;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _preloadFuture ??= _preloadImageAssets();
+  }
+
+  Future<void> _preloadImageAssets() async {
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final imageAssets = manifest
+        .listAssets()
+        .where(_isPreloadableImageAsset)
+        .toList(growable: false);
+
+    for (final asset in imageAssets) {
+      if (!mounted) {
+        return;
+      }
+
+      try {
+        await precacheImage(AssetImage(asset), context);
+      } catch (error, stackTrace) {
+        debugPrint('SmartSteps image preload failed for $asset: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
+  }
+
+  bool _isPreloadableImageAsset(String asset) {
+    final lower = asset.toLowerCase();
+    return lower.startsWith('assets/images/') &&
+        (lower.endsWith('.png') ||
+            lower.endsWith('.jpg') ||
+            lower.endsWith('.jpeg') ||
+            lower.endsWith('.webp'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _preloadFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          return SmartStepsApp(enableAudio: true);
+        }
+
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'SmartSteps',
+          theme: DuoTheme.light,
+          home: const _SmartStepsBootSplash(),
+        );
+      },
+    );
+  }
+}
+
+class _SmartStepsBootSplash extends StatelessWidget {
+  const _SmartStepsBootSplash();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFFFFF7D6),
+      body: Center(
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: CircularProgressIndicator(strokeWidth: 4),
+        ),
+      ),
+    );
   }
 }
 

@@ -35,6 +35,14 @@ Always read these files first:
 - Use existing state management style already used in the project.
 - Do not hardcode secrets, API keys, or Supabase credentials directly in code.
 
+## Lesson audio rules
+
+- For lesson auto-read flows on iOS web, do not autoplay multiple separate voice files in sequence (question, card A, card B). iOS Safari may mute later clips even when the UI highlight advances.
+- When a lesson needs automatic narration across the question and choice cards, create one combined narration asset per lesson in M4A/AAC format (44.1 kHz stereo) and use it for the iOS web autoplay path.
+- Keep individual voice files available for manual tap-to-replay on each question/card.
+- Combined narration should include the question, a short pause, choice A, a short pause, and choice B. Keep UI highlight timing in sync with cue durations.
+- Use the `audio/mp4` MIME type for `.m4a` narration assets and `audio/mpeg` for `.mp3` assets.
+
 ## Supabase rules
 
 - Store uploaded files in Supabase Storage.
