@@ -4532,6 +4532,8 @@ const _voiceSequenceGap = Duration(milliseconds: 360);
 const _questionFallbackDuration = Duration(milliseconds: 3600);
 const _choiceFallbackDuration = Duration(milliseconds: 2300);
 const _voiceCompletionGrace = Duration(milliseconds: 420);
+const _iosWebVoiceSequenceGap = Duration(milliseconds: 760);
+const _iosWebChoiceFallbackDuration = Duration(milliseconds: 3400);
 const _outsidePortraitOrientations = [
   DeviceOrientation.portraitUp,
   DeviceOrientation.portraitDown,
@@ -5950,10 +5952,17 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   }
 
   Duration _fallbackDurationFor(String id) {
-    return id == 'question'
-        ? _questionFallbackDuration
+    if (id == 'question') {
+      return _questionFallbackDuration;
+    }
+
+    return smartStepsIsIosWeb
+        ? _iosWebChoiceFallbackDuration
         : _choiceFallbackDuration;
   }
+
+  Duration get _sequenceGap =>
+      smartStepsIsIosWeb ? _iosWebVoiceSequenceGap : _voiceSequenceGap;
 
   @override
   void initState() {
@@ -6128,7 +6137,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
       if (!mounted || sequenceId != _openingSequenceId) {
         return;
       }
-      await Future<void>.delayed(_voiceSequenceGap);
+      await Future<void>.delayed(_sequenceGap);
     }
 
     if (mounted && sequenceId == _openingSequenceId) {
@@ -6297,6 +6306,9 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
           requestId == _voiceRequestId) {
         await Future<void>.delayed(minimumHold - stopwatch.elapsed);
       }
+      if (smartStepsIsIosWeb && mounted && requestId == _voiceRequestId) {
+        await _resetVoicePlayerForNextClip();
+      }
       return true;
     } catch (error, stackTrace) {
       debugPrint('SmartSteps voice playback failed for $assetPath: $error');
@@ -6313,6 +6325,17 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
           }
         });
       }
+    }
+  }
+
+  Future<void> _resetVoicePlayerForNextClip() async {
+    try {
+      await _voicePlayer.stop();
+      await _voicePlayer.release();
+      await _prepareVoicePlayer();
+    } catch (error, stackTrace) {
+      debugPrint('SmartSteps voice reset failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
