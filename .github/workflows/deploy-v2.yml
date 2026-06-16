@@ -1,0 +1,77 @@
+﻿name: Deploy SmartSteps v2.0
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smartsteps-v2-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy-web:
+    name: Build and deploy web artifact
+    runs-on: [self-hosted, Windows]
+
+    steps:
+      - name: Checkout SmartStepsApp
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Flutter web
+        run: flutter build web --base-href "/smartsteps-v2/" --release --dart-define=FLUTTER_WEB_AUTO_DETECT=false
+
+      - name: Checkout SmartSteps v2 deploy repository
+        uses: actions/checkout@v4
+        with:
+          repository: winhtuan/smartsteps-v2
+          token: ${{ secrets.SMARTSTEPS_V2_DEPLOY_TOKEN }}
+          path: smartsteps-v2
+
+      - name: Deploy to smartsteps-v2 repository
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE 'build\web'
+          $target = Join-Path $env:GITHUB_WORKSPACE 'smartsteps-v2'
+
+          if (!(Test-Path -LiteralPath $source)) {
+            throw "Build output not found: $source"
+          }
+
+          Get-ChildItem -LiteralPath $target -Force |
+            Where-Object { $_.Name -ne '.git' } |
+            Remove-Item -Recurse -Force
+
+          Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
+
+          Write-Host "Prepared SmartSteps web build in $target"
+
+      - name: Commit and push smartsteps-v2
+        shell: pwsh
+        working-directory: smartsteps-v2
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add --all
+
+          if ((git status --porcelain).Length -eq 0) {
+            Write-Host "No changes to deploy."
+            exit 0
+          }
+
+          git commit -m "Deploy SmartSteps web build from $env:GITHUB_SHA"
+          git push

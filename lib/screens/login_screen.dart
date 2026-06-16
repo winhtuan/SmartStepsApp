@@ -214,7 +214,7 @@ class LoginScreen extends StatelessWidget {
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                child: const Text('Đăng nhập'),
+                                child: const Text('Đăng nhập v1.0'),
                               ),
                             ),
                           ),
