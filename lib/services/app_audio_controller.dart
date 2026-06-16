@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../utils/platform_environment.dart';
+
 class SmartStepsAudioAssets {
   const SmartStepsAudioAssets._();
 
@@ -73,7 +75,7 @@ class SmartStepsAudioController extends ChangeNotifier
   bool get isSfxEnabled => _isSfxEnabled;
 
   Future<void> startBackgroundMusic() async {
-    if (_isStarted || _isDisposed || !_isMusicEnabled) {
+    if (_isStarted || _isDisposed || !_isMusicEnabled || smartStepsIsIosWeb) {
       return;
     }
 
@@ -259,6 +261,7 @@ class SmartStepsAudioController extends ChangeNotifier
     if (_isDisposed ||
         _isPausedByLifecycle ||
         !_isMusicEnabled ||
+        smartStepsIsIosWeb ||
         _duckDepth > 0) {
       return;
     }
@@ -290,7 +293,7 @@ class SmartStepsAudioController extends ChangeNotifier
       _duckDepth > 0 ? _duckedMusicVolume : _normalMusicVolume;
 
   Future<void> _resumeMusic() async {
-    if (!_isMusicEnabled || _duckDepth > 0) {
+    if (!_isMusicEnabled || smartStepsIsIosWeb || _duckDepth > 0) {
       return;
     }
 
