@@ -4521,6 +4521,8 @@ String? _rewardTitle(String? value) {
 
 const correctChoiceId = 'ask-adult';
 const _voicePlaybackRate = 0.82;
+const _voiceVolume = 0.82;
+const _lessonVideoVolume = 0.86;
 const _voicePlaybackTimeout = Duration(seconds: 12);
 const _voiceStartTimeout = Duration(milliseconds: 4000);
 const _voiceSequenceGap = Duration(milliseconds: 360);
@@ -5324,7 +5326,7 @@ class _StoryClipStageState extends State<_StoryClipStage> {
     await controller.seekTo(Duration.zero);
 
     try {
-      await controller.setVolume(1.0);
+      await controller.setVolume(_lessonVideoVolume);
     } catch (_) {
       // Keep playback usable on platforms that do not expose volume control.
     }
@@ -6026,7 +6028,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     try {
       await _voicePlayer.setPlayerMode(PlayerMode.mediaPlayer);
       await _voicePlayer.setReleaseMode(ReleaseMode.stop);
-      await _voicePlayer.setVolume(1.0);
+      await _voicePlayer.setVolume(_voiceVolume);
     } catch (error, stackTrace) {
       debugPrint('SmartSteps voice player setup failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -6034,7 +6036,7 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
   }
 
   Future<void> _setVoicePlaybackRate() async {
-    if (defaultTargetPlatform == TargetPlatform.android) {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.android) {
       try {
         await _voicePlayer.setPlaybackRate(1.0);
       } catch (_) {}
