@@ -51,7 +51,7 @@ class SmartStepsAudioController extends ChangeNotifier
       _warningPlayer = AudioPlayer(playerId: 'smartsteps-warning-alert');
 
   static const _normalMusicVolume = 0.6;
-  static const _duckedMusicVolume = 0.18;
+  static const _duckedMusicVolume = 0.0;
 
   final AudioPlayer _musicPlayer;
   final AudioPlayer _tapPlayer;
