@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key, this.onLogin});
+import '../theme/duo_theme.dart';
+import '../widgets/smartsteps_press_effect.dart';
+import '../services/local_profile_storage.dart';
+import 'register_screen.dart';
 
-  final void Function(BuildContext context)? onLogin;
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({
+    super.key,
+    required this.profileStorage,
+    required this.onLogin,
+    required this.onRegistrationCompleted,
+  });
+
+  final LocalProfileStorage profileStorage;
+  final void Function(BuildContext context) onLogin;
+  final void Function(BuildContext context) onRegistrationCompleted;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBB901),
+      backgroundColor: DuoColors.primaryYellow,
       body: SafeArea(
         top: false,
         bottom: false,
@@ -22,12 +34,14 @@ class LoginScreen extends StatelessWidget {
               children: [
                 Positioned.fill(
                   child: DecoratedBox(
-                    decoration: const BoxDecoration(color: Color(0xFFFBB901)),
+                    decoration: const BoxDecoration(
+                      color: DuoColors.primaryYellow,
+                    ),
                     child: Align(
                       alignment: const Alignment(0, -0.72),
                       child: Image.asset(
-                        'assets/images/mascot.png',
-                        width: 150 * scale,
+                        'assets/images/logo/logo smartstep-01.png',
+                        width: 190 * scale,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -77,22 +91,77 @@ class LoginScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text.rich(
-                            TextSpan(
-                              children: const [
-                                TextSpan(text: 'Bạn chưa có tài khoản? '),
-                                TextSpan(
-                                  text: 'Đăng ký',
-                                  style: TextStyle(color: Color(0xFFFF3F3F)),
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Bạn chưa có tài khoản?',
+                                  style: TextStyle(
+                                    color: Color(0xFF7A7A7A),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    height: 1.6,
+                                  ),
                                 ),
-                              ],
-                            ),
-                            style: const TextStyle(
-                              color: Color(0xFF7A7A7A),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              height: 1.6,
-                            ),
+                              ),
+                              SmartStepsPressEffect(
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      PageRouteBuilder<void>(
+                                        pageBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                            ) => RegisterScreen(
+                                              profileStorage: profileStorage,
+                                              onRegistrationCompleted:
+                                                  onRegistrationCompleted,
+                                            ),
+                                        transitionsBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                              child,
+                                            ) {
+                                              final curvedAnimation =
+                                                  CurvedAnimation(
+                                                    parent: animation,
+                                                    curve: Curves.easeOutCubic,
+                                                    reverseCurve:
+                                                        Curves.easeInCubic,
+                                                  );
+
+                                              return SlideTransition(
+                                                position: Tween<Offset>(
+                                                  begin: const Offset(0, 1),
+                                                  end: Offset.zero,
+                                                ).animate(curvedAnimation),
+                                                child: child,
+                                              );
+                                            },
+                                      ),
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(64, 34),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'Đăng ký',
+                                    style: TextStyle(
+                                      color: Color(0xFFFF3F3F),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 26),
                           const _LoginInput(label: 'Email'),
@@ -101,19 +170,23 @@ class LoginScreen extends StatelessWidget {
                           const SizedBox(height: 11),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () {},
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 30),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: const Text(
-                                'Quên mật khẩu',
-                                style: TextStyle(
-                                  color: Color(0xFFBA1A1A),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w400,
+                            child: SmartStepsPressEffect(
+                              child: TextButton(
+                                onPressed: () =>
+                                    _showFeatureInDevelopment(context),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(0, 32),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Quên mật khẩu',
+                                  style: TextStyle(
+                                    color: Color(0xFFBA1A1A),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
                             ),
@@ -122,25 +195,27 @@ class LoginScreen extends StatelessWidget {
                           SizedBox(
                             width: double.infinity,
                             height: 50,
-                            child: FilledButton(
-                              key: const ValueKey('login-submit-button'),
-                              onPressed: () {
-                                onLogin?.call(context);
-                              },
-                              style: FilledButton.styleFrom(
-                                elevation: 0,
-                                backgroundColor: const Color(0xFFFFEDA0),
-                                foregroundColor: Colors.black,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
+                            child: SmartStepsPressEffect(
+                              child: FilledButton(
+                                key: const ValueKey('login-submit-button'),
+                                onPressed: () {
+                                  onLogin(context);
+                                },
+                                style: FilledButton.styleFrom(
+                                  elevation: 0,
+                                  backgroundColor: DuoColors.primaryYellow,
+                                  foregroundColor: DuoColors.textPrimary,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(28),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                textStyle: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w400,
-                                ),
+                                child: const Text('Đăng nhập v1.0.1'),
                               ),
-                              child: const Text('Đăng nhập'),
                             ),
                           ),
                           const SizedBox(height: 32),
@@ -187,6 +262,12 @@ class LoginScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showFeatureInDevelopment(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Tính năng đang được phát triển.')),
+  );
 }
 
 class _LoginInput extends StatelessWidget {

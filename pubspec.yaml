@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   video_player: ^2.11.1
   audioplayers: ^6.6.0
+  supabase_flutter: ^2.12.4
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -62,8 +64,26 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/videos/
-    - assets/voices/lesson1/
+    - assets/images/flashCard/Crossroad/
+    - assets/images/flashCard/Safety_smallitems/
+    - assets/images/flashCard/Safety_stranger/
+    - assets/images/logo/
+    - assets/images/island/
+    - assets/images/mascot/
+    - assets/images/avatars/
+    - assets/audio/
+    - assets/videos/Crossroad/intro.mp4
+    - assets/videos/Crossroad/wrong.mp4
+    - assets/videos/Crossroad/correct.mp4
+    - assets/videos/Safety_smallitems/lesson1-intro.mp4
+    - assets/videos/Safety_smallitems/lesson1-wrong.mp4
+    - assets/videos/Safety_smallitems/lesson1-correct.mp4
+    - assets/videos/Safety_stranger/Intro.mp4
+    - assets/videos/Safety_stranger/wrong.mp4
+    - assets/videos/Safety_stranger/correct.mp4
+    - assets/voices/Crossroad/
+    - assets/voices/Safety_smallitems/
+    - assets/voices/Safety_stranger/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

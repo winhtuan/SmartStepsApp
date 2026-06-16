@@ -1,0 +1,66 @@
+name: Auto Merge To Dev
+
+on:
+  push:
+    branches-ignore:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-merge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  merge-into-dev:
+    name: Merge branch into dev when conflict-free
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.SMARTSTEPS_APP_PUSH_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch source branch
+        env:
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: |
+          git fetch origin "$SOURCE_BRANCH":"$SOURCE_BRANCH"
+          git checkout dev
+          git pull origin dev
+
+      - name: Try merge source branch into dev
+        id: merge_attempt
+        env:
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: |
+          if git merge --no-ff --no-edit "$SOURCE_BRANCH"; then
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort || true
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            echo "Conflict detected. Skipping auto-merge into dev."
+          fi
+
+      - name: Push updated dev branch
+        if: steps.merge_attempt.outputs.merged == 'true'
+        env:
+          PUSH_TOKEN: ${{ secrets.SMARTSTEPS_APP_PUSH_TOKEN }}
+        run: |
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push origin HEAD:dev
+
+      - name: Finish without merge
+        if: steps.merge_attempt.outputs.merged != 'true'
+        run: echo "Auto-merge stopped because the source branch conflicts with dev."
