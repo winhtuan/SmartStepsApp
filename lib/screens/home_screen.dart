@@ -4514,17 +4514,17 @@ LessonOpeningNarration? _openingNarrationFor({
   return switch (key) {
     'assets/voices/Safety_smallitems/question.mp3|assets/voices/Safety_smallitems/choice-put-mouth.mp3|assets/voices/Safety_smallitems/choice-ask-adult.mp3' =>
       LessonOpeningNarration(
-        asset: 'assets/voices/Safety_smallitems/opening-narration.mp3',
+        asset: 'assets/voices/Safety_smallitems/opening-narration.m4a',
         cues: cues,
       ),
     'assets/voices/Safety_stranger/question_l3.mp3|assets/voices/Safety_stranger/wrong_l3.mp3|assets/voices/Safety_stranger/correct_l3.mp3' =>
       LessonOpeningNarration(
-        asset: 'assets/voices/Safety_stranger/opening-narration.mp3',
+        asset: 'assets/voices/Safety_stranger/opening-narration.m4a',
         cues: cues,
       ),
     'assets/voices/Crossroad/Question.mp3|assets/voices/Crossroad/wrong.mp3|assets/voices/Crossroad/correct.mp3' =>
       LessonOpeningNarration(
-        asset: 'assets/voices/Crossroad/opening-narration.mp3',
+        asset: 'assets/voices/Crossroad/opening-narration.m4a',
         cues: cues,
       ),
     _ => null,
@@ -6573,7 +6573,10 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     required Uri? remoteVoiceUrl,
   }) async {
     if (remoteVoiceUrl != null) {
-      return UrlSource(remoteVoiceUrl.toString(), mimeType: 'audio/mpeg');
+      return UrlSource(
+        remoteVoiceUrl.toString(),
+        mimeType: _voiceMimeTypeFor(assetPath),
+      );
     }
 
     if (!asset.trim().startsWith('assets/')) {
@@ -6582,7 +6585,13 @@ class _QuestionOverlayState extends State<_QuestionOverlay> {
     }
 
     await rootBundle.load(asset);
-    return AssetSource(assetPath, mimeType: 'audio/mpeg');
+    return AssetSource(assetPath, mimeType: _voiceMimeTypeFor(assetPath));
+  }
+
+  String _voiceMimeTypeFor(String assetPath) {
+    return assetPath.toLowerCase().endsWith('.m4a')
+        ? 'audio/mp4'
+        : 'audio/mpeg';
   }
 
   Future<void> _resetVoicePlayerForNextClip() async {
