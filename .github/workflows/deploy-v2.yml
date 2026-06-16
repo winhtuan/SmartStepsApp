@@ -19,7 +19,7 @@ jobs:
     runs-on: [self-hosted, Windows]
 
     env:
-      FLUTTER_BIN: 'C:\Users\winhtuan\flutter\bin'
+      FLUTTER_BIN: 'F:\EXE\flutter\bin'
 
     steps:
       - name: Checkout SmartStepsApp
