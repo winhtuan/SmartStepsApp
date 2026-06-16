@@ -25,10 +25,35 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Add Flutter to PATH
-        shell: cmd
+        shell: powershell
         run: |
-          if not exist "%FLUTTER_BIN%\flutter.bat" exit /b 1
-          echo %FLUTTER_BIN%>> "%GITHUB_PATH%"
+          Write-Host "Current user:"
+          whoami
+
+          Write-Host "Current location:"
+          Get-Location
+
+          Write-Host "FLUTTER_BIN=$env:FLUTTER_BIN"
+
+          $flutterBat = Join-Path $env:FLUTTER_BIN "flutter.bat"
+          Write-Host "Checking: $flutterBat"
+
+          Write-Host "Test path result:"
+          Test-Path $flutterBat
+
+          if (!(Test-Path $flutterBat)) {
+            Write-Host "Folder content:"
+            if (Test-Path $env:FLUTTER_BIN) {
+              Get-ChildItem $env:FLUTTER_BIN
+            } else {
+              Write-Host "FLUTTER_BIN folder not found"
+            }
+
+            exit 1
+          }
+
+          Add-Content -Path $env:GITHUB_PATH -Value $env:FLUTTER_BIN
+          Write-Host "Flutter added to PATH"
 
       - name: Verify Flutter
         shell: cmd
