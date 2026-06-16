@@ -25,6 +25,7 @@ jobs:
         with:
           ref: dev
           fetch-depth: 0
+          token: ${{ secrets.SMARTSTEPS_APP_PUSH_TOKEN }}
 
       - name: Configure Git
         run: |
@@ -54,7 +55,11 @@ jobs:
 
       - name: Push updated dev branch
         if: steps.merge_attempt.outputs.merged == 'true'
-        run: git push origin HEAD:dev
+        env:
+          PUSH_TOKEN: ${{ secrets.SMARTSTEPS_APP_PUSH_TOKEN }}
+        run: |
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push origin HEAD:dev
 
       - name: Finish without merge
         if: steps.merge_attempt.outputs.merged != 'true'
