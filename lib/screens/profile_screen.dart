@@ -7,9 +7,14 @@ import '../theme/duo_theme.dart';
 import '../widgets/duo_components.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required this.profileStorage});
+  const ProfileScreen({
+    super.key,
+    required this.profileStorage,
+    required this.onLogout,
+  });
 
   final LocalProfileStorage profileStorage;
+  final void Function(BuildContext context) onLogout;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -108,6 +113,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _profileFuture = widget.profileStorage.readProfile();
                       });
                     },
+                    onLogout: _handleLogout,
                     onFeatureUnavailable: () =>
                         _showFeatureInDevelopment(context),
                   ),
@@ -118,6 +124,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleLogout() async {
+    final shouldLogout = await _showLogoutConfirmation(context);
+    if (shouldLogout != true || !mounted) {
+      return;
+    }
+
+    await widget.profileStorage.clearProfile();
+    if (!mounted) {
+      return;
+    }
+
+    widget.onLogout(context);
   }
 }
 
@@ -177,7 +197,7 @@ class _ChildSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DuoCard(
-      color: const Color(0xFFFFF6D6),
+      color: DuoColors.background,
       borderColor: DuoColors.border,
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -326,7 +346,7 @@ class _EmptyProfileNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF8E1),
+        color: DuoColors.background,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: DuoColors.border),
       ),
@@ -473,10 +493,12 @@ class _BasicInfoRow extends StatelessWidget {
 class _ProfileActions extends StatelessWidget {
   const _ProfileActions({
     required this.onRefresh,
+    required this.onLogout,
     required this.onFeatureUnavailable,
   });
 
   final VoidCallback onRefresh;
+  final VoidCallback onLogout;
   final VoidCallback onFeatureUnavailable;
 
   @override
@@ -502,6 +524,29 @@ class _ProfileActions extends StatelessWidget {
             minimumSize: const Size(0, 52),
             foregroundColor: DuoColors.textPrimary,
             side: const BorderSide(color: DuoColors.border, width: 2),
+            textStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: onLogout,
+          icon: const Icon(Icons.logout_rounded, size: 21),
+          label: const Text(
+            'Đăng xuất',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 52),
+            foregroundColor: const Color(0xFFBA1A1A),
+            side: const BorderSide(color: Color(0xFFFFDAD6), width: 2),
+            backgroundColor: const Color(0xFFFFFBFF),
             textStyle: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
@@ -539,5 +584,33 @@ String _nonEmpty(String? value, String fallback) {
 void _showFeatureInDevelopment(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('Tính năng đang được phát triển.')),
+  );
+}
+
+Future<bool?> _showLogoutConfirmation(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text('Đăng xuất khỏi SmartSteps?'),
+        content: const Text(
+          'Ứng dụng sẽ xóa hồ sơ local và tiến độ đã lưu trên thiết bị này.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFBA1A1A),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      );
+    },
   );
 }

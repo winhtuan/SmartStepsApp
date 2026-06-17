@@ -19,6 +19,15 @@ class DuoPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isEnabled = onPressed != null;
+    final bgColor = isEnabled ? backgroundColor : DuoColors.lockedGray;
+    final shadowColor = isEnabled
+        ? (backgroundColor == DuoColors.primaryYellow
+            ? DuoColors.tactileShadow
+            : backgroundColor.withAlpha(200))
+        : DuoColors.lockedShadow;
+    final fgColor = isEnabled ? DuoColors.textPrimary : DuoColors.textSecondary;
+
     final child = icon == null
         ? Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)
         : Row(
@@ -38,22 +47,37 @@ class DuoPrimaryButton extends StatelessWidget {
           );
 
     return SmartStepsPressEffect(
-      enabled: onPressed != null,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: backgroundColor,
-          disabledBackgroundColor: DuoColors.lockedGray,
-          foregroundColor: DuoColors.textPrimary,
-          disabledForegroundColor: DuoColors.textSecondary,
-          minimumSize: const Size(0, 58),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-          shape: RoundedRectangleBorder(
+      enabled: isEnabled,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: bgColor,
             borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: shadowColor,
+                offset: const Offset(0, 6),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: DefaultTextStyle(
+            style: TextStyle(
+              color: fgColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily ?? 'Poppins',
+            ),
+            child: IconTheme(
+              data: IconThemeData(color: fgColor),
+              child: child,
+            ),
           ),
         ),
-        child: child,
       ),
     );
   }
@@ -80,7 +104,7 @@ class DuoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: borderColor ?? Colors.white, width: 3),
+        border: Border.all(color: borderColor ?? DuoColors.lockedGray, width: 2),
         boxShadow: const [
           BoxShadow(
             color: Color(0x1F6B5B00),
@@ -113,7 +137,7 @@ class DuoProgressBar extends StatelessWidget {
       child: LinearProgressIndicator(
         value: value.clamp(0, 1),
         minHeight: height,
-        backgroundColor: const Color(0xFFFFECB3),
+        backgroundColor: DuoColors.softYellow,
         color: color,
       ),
     );

@@ -110,7 +110,7 @@ class RegistrationGenderStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const options = ['Nam', 'Nữ', 'Khác', 'Không muốn trả lời'];
+    const options = ['Nam', 'Nữ', 'Không muốn trả lời'];
     return _StepFrame(
       title: 'Giới tính của bé?',
       subtitle: 'Thông tin này giúp hồ sơ của bé đầy đủ hơn.',
@@ -284,7 +284,7 @@ class RegistrationTermsStep extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF8E1),
+              color: DuoColors.background,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: DuoColors.border, width: 2),
             ),
@@ -527,7 +527,7 @@ class _SummaryRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 11),
       decoration: BoxDecoration(
         border: showDivider
-            ? const Border(bottom: BorderSide(color: Color(0xFFFFE082)))
+            ? const Border(bottom: BorderSide(color: DuoColors.border))
             : null,
       ),
       child: Row(
@@ -563,7 +563,7 @@ InputDecoration _inputDecoration(String hint) {
     hintText: hint,
     counterText: '',
     filled: true,
-    fillColor: const Color(0xFFFFF8E1),
+    fillColor: DuoColors.background,
     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(20),

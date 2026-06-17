@@ -19,6 +19,11 @@ class WebStorage implements PlatformStorage {
   Future<void> writeString(String key, String value) async {
     html.window.localStorage[key] = value;
   }
+
+  @override
+  Future<void> deleteKey(String key) async {
+    html.window.localStorage.remove(key);
+  }
 }
 
 PlatformStorage getPlatformStorage(dynamic directory) => WebStorage(directory);

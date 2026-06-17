@@ -39,6 +39,15 @@ class IoStorage implements PlatformStorage {
     await file.parent.create(recursive: true);
     await file.writeAsString(value, flush: true);
   }
+
+  @override
+  Future<void> deleteKey(String key) async {
+    final file = await _file(key);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
 }
 
-PlatformStorage getPlatformStorage(dynamic directory) => IoStorage(directory as Directory?);
+PlatformStorage getPlatformStorage(dynamic directory) =>
+    IoStorage(directory as Directory?);

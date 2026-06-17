@@ -204,7 +204,7 @@ class LoginScreen extends StatelessWidget {
                                 style: FilledButton.styleFrom(
                                   elevation: 0,
                                   backgroundColor: DuoColors.primaryYellow,
-                                  foregroundColor: DuoColors.textPrimary,
+                                  foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(28),
                                   ),
