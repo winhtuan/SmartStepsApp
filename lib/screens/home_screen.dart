@@ -14,8 +14,8 @@ import 'package:video_player/video_player.dart';
 import '../services/supabase_config.dart';
 import '../services/app_audio_controller.dart';
 import '../services/local_profile_storage.dart';
+import '../services/registration_avatar_service.dart';
 import '../theme/duo_theme.dart';
-import '../utils/constants.dart';
 import '../utils/platform_environment.dart';
 import '../widgets/duo_components.dart';
 import '../widgets/smartsteps_press_effect.dart';
@@ -187,6 +187,7 @@ class _SmartStepsAppState extends State<SmartStepsApp> {
           situationService: widget.situationService,
           profileStorage: widget.profileStorage,
           showPremiumOffer: widget.showPremiumOfferAfterLogin,
+          onLogout: _handleLogout,
         ),
       ),
     );
@@ -234,6 +235,20 @@ class _SmartStepsAppState extends State<SmartStepsApp> {
     );
   }
 
+  void _handleLogout(BuildContext context) {
+    _hasCompletedInitialSurvey = false;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => LoginScreen(
+          profileStorage: widget.profileStorage,
+          onLogin: _handleLogin,
+          onRegistrationCompleted: _handleRegistrationCompleted,
+        ),
+      ),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = MaterialApp(
@@ -260,11 +275,13 @@ class SmartStepsCatalogPage extends StatefulWidget {
     super.key,
     required this.situationService,
     required this.profileStorage,
+    required this.onLogout,
     this.showPremiumOffer = false,
   });
 
   final SituationService situationService;
   final LocalProfileStorage profileStorage;
+  final void Function(BuildContext context) onLogout;
   final bool showPremiumOffer;
 
   @override
@@ -675,7 +692,10 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
             isActive: _selectedTabIndex == 1,
           ),
           const _PracticeTabPage(),
-          ProfileScreen(profileStorage: widget.profileStorage),
+          ProfileScreen(
+            profileStorage: widget.profileStorage,
+            onLogout: widget.onLogout,
+          ),
         ],
       ),
       bottomNavigationBar: _SmartStepsBottomNavigation(
@@ -1072,13 +1092,26 @@ class _SmartStepsBottomNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: DuoColors.card,
-      elevation: 18,
-      shadowColor: const Color(0x296B5B00),
+      color: const Color(0xFFFFFEF8),
+      elevation: 0,
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 68,
+        child: Container(
+          height: 72,
+          padding: const EdgeInsets.fromLTRB(8, 5, 8, 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFEF8),
+            border: const Border(
+              top: BorderSide(color: Color(0xFFEEE4C7), width: 1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF25324B).withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, -8),
+              ),
+            ],
+          ),
           child: Row(
             children: [
               _SmartStepsBottomNavigationItem(
@@ -1145,11 +1178,19 @@ class _SmartStepsBottomNavigationItem extends StatelessWidget {
             highlightShape: BoxShape.rectangle,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
               padding: const EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected ? DuoColors.softYellow : Colors.transparent,
+                color: isSelected
+                    ? const Color(0xFFFFF0B8)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFFECC55A)
+                      : Colors.transparent,
+                  width: 1.2,
+                ),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1157,9 +1198,9 @@ class _SmartStepsBottomNavigationItem extends StatelessWidget {
                   Icon(
                     icon,
                     color: isSelected
-                        ? DuoColors.darkYellow
+                        ? const Color(0xFFC88A00)
                         : DuoColors.textSecondary,
-                    size: 25,
+                    size: 24,
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -1170,7 +1211,7 @@ class _SmartStepsBottomNavigationItem extends StatelessWidget {
                       color: isSelected
                           ? DuoColors.textPrimary
                           : DuoColors.textSecondary,
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                       height: 1.1,
                     ),
@@ -1206,21 +1247,24 @@ class _IslandHomeMapTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: DuoColors.primaryYellow,
-      child: Column(
+      child: Stack(
         children: [
-          SafeArea(
-            bottom: false,
-            child: _IslandHomeHeader(
-              profile: profile,
-              audioController: audioController,
-            ),
-          ),
-          Expanded(
+          Positioned.fill(
             child: _IslandMapStage(
+              profile: profile,
               islands: islands,
               isLoading: isLoading,
               error: error,
               onSelected: onSelected,
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _IslandHomeHeader(
+              profile: profile,
+              audioController: audioController,
             ),
           ),
         ],
@@ -1242,58 +1286,95 @@ class _IslandHomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 380;
         final showAudioControls =
             audioController != null && constraints.maxWidth >= 430;
-        final logoSize = isCompact ? 58.0 : 72.0;
-        final avatarSize = isCompact ? 56.0 : 66.0;
 
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            isCompact ? 16 : 24,
-            isCompact ? 8 : 12,
-            isCompact ? 16 : 24,
-            isCompact ? 10 : 14,
-          ),
-          child: SizedBox(
-            height: isCompact ? 64 : 78,
-            child: Row(
-              children: [
-                Container(
-                  width: logoSize,
-                  height: logoSize,
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(LessonAssets.logo, fit: BoxFit.contain),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    AppConstants.appName.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: isCompact ? 25 : 31,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
-                  ),
-                ),
-                if (showAudioControls) ...[
-                  _AudioToggleCluster(controller: audioController!),
-                  const SizedBox(width: 12),
-                ],
-                Tooltip(
-                  message: _catalogChildName(profile),
-                  child: _KidProfileAvatar(size: avatarSize),
+        return SafeArea(
+          bottom: false,
+          child: Container(
+            height: 72,
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8E6).withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.70),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF7B5C18).withValues(alpha: 0.12),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
                 ),
               ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 10, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1B8),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFF3D46A)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.local_fire_department_rounded,
+                          color: Color(0xFF8A5A00),
+                          size: 13,
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          '0 ngày',
+                          style: TextStyle(
+                            color: Color(0xFF8A5A00),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showAudioControls) ...[
+                          _AudioToggleCluster(controller: audioController!),
+                          const SizedBox(width: 8),
+                        ],
+                        Flexible(
+                          child: Text(
+                            'Chào ${_catalogChildName(profile)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: GameColors.ink,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Tooltip(
+                          message: _catalogChildName(profile),
+                          child: _KidProfileAvatar(size: 40, profile: profile),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1302,73 +1383,148 @@ class _IslandHomeHeader extends StatelessWidget {
   }
 }
 
-class _IslandMapStage extends StatelessWidget {
+class _IslandMapStage extends StatefulWidget {
   const _IslandMapStage({
+    required this.profile,
     required this.islands,
     required this.isLoading,
     required this.error,
     required this.onSelected,
   });
 
+  final ChildProfile? profile;
   final List<_IslandCatalogEntry> islands;
   final bool isLoading;
   final String? error;
   final ValueChanged<_IslandCatalogEntry> onSelected;
 
   @override
+  State<_IslandMapStage> createState() => _IslandMapStageState();
+}
+
+class _IslandMapStageState extends State<_IslandMapStage> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
-        final transform = _IslandMapTransform.cover(
-          source: _islandMapSourceSize,
-          viewport: viewport,
+        final mapHeight = math.max(
+          viewport.height + 560,
+          viewport.width * 2.75,
         );
-        final orderedIslands = [...islands]
+        final orderedIslands = [...widget.islands]
           ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-        final visibleIslandCount = math.min(
-          orderedIslands.length,
-          _islandMapSlots.length,
-        );
+        final visibleIslandCount = math.min(orderedIslands.length, 3);
+        final showActionPanel =
+            !widget.isLoading && widget.error == null && visibleIslandCount > 0;
 
         return ClipRect(
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.asset(
-                LessonAssets.islandBackground,
-                fit: BoxFit.cover,
-                alignment: Alignment.center,
+              _IslandMapParallaxBackground(
+                controller: _scrollController,
+                viewportWidth: viewport.width,
+                viewportHeight: viewport.height,
+                mapHeight: mapHeight,
+                bottomPadding: showActionPanel ? 96 : 0,
               ),
-              for (var index = 0; index < visibleIslandCount; index++)
-                _IslandMapHitArea(
-                  key: ValueKey('island-${orderedIslands[index].islandId}'),
-                  rect: transform.centeredRect(
-                    _islandMapSlots[index].hitCenter,
-                    _islandMapSlots[index].hitSize,
+              SingleChildScrollView(
+                controller: _scrollController,
+                padding: EdgeInsets.only(bottom: showActionPanel ? 96 : 0),
+                child: SizedBox(
+                  height: mapHeight,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.0),
+                              const Color(0xFF5D8F5A).withValues(alpha: 0.20),
+                            ],
+                          ),
+                        ),
+                      ),
+                      for (
+                        var index = 0;
+                        index < _islandMapSlots.length;
+                        index++
+                      )
+                        if (index < visibleIslandCount)
+                          _IslandMapNodePositioner(
+                            viewport: viewport,
+                            mapHeight: mapHeight,
+                            slot: _islandMapSlots[index],
+                            child: _IslandMapNode(
+                              key: ValueKey(
+                                'island-${orderedIslands[index].islandId}',
+                              ),
+                              title: _islandMapTitle(
+                                orderedIslands[index],
+                                index,
+                              ),
+                              lessonCount: orderedIslands[index].lessonCount,
+                              slot: _islandMapSlots[index],
+                              onTap: () =>
+                                  widget.onSelected(orderedIslands[index]),
+                            ),
+                          )
+                        else
+                          _IslandMapNodePositioner(
+                            viewport: viewport,
+                            mapHeight: mapHeight,
+                            slot: _islandMapSlots[index],
+                            child: _HiddenIslandMapNode(
+                              title: _hiddenIslandMapTitle(index),
+                              slot: _islandMapSlots[index],
+                            ),
+                          ),
+                    ],
                   ),
-                  title: _islandMapTitle(orderedIslands[index], index),
-                  onTap: () => onSelected(orderedIslands[index]),
                 ),
-              for (var index = 0; index < visibleIslandCount; index++)
-                _IslandMapLabelPositioner(
-                  viewport: viewport,
-                  transform: transform,
-                  slot: _islandMapSlots[index],
-                  title: _islandMapTitle(orderedIslands[index], index),
-                  onTap: () => onSelected(orderedIslands[index]),
+              ),
+              if (showActionPanel)
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  bottom: 10,
+                  child: _IslandHomeActionPanel(
+                    profile: widget.profile,
+                    island: orderedIslands.first,
+                    islandTitle: _islandMapTitle(orderedIslands.first, 0),
+                    onPressed: () => widget.onSelected(orderedIslands.first),
+                  ),
                 ),
-              if (isLoading)
+              if (widget.isLoading)
                 const _IslandMapStatusOverlay(
                   icon: Icons.sync_rounded,
                   title: 'Đang tải dữ liệu',
                   body: 'SmartSteps đang mở bản đồ đảo.',
                 )
-              else if (error != null)
+              else if (widget.error != null)
                 _IslandMapStatusOverlay(
                   icon: Icons.cloud_off_rounded,
                   title: 'Không tải được dữ liệu',
-                  body: error!,
+                  body: widget.error!,
                 )
               else if (orderedIslands.isEmpty)
                 const _IslandMapStatusOverlay(
@@ -1384,109 +1540,50 @@ class _IslandMapStage extends StatelessWidget {
   }
 }
 
-class _IslandMapLabelPositioner extends StatelessWidget {
-  const _IslandMapLabelPositioner({
-    required this.viewport,
-    required this.transform,
-    required this.slot,
-    required this.title,
-    required this.onTap,
+class _IslandMapParallaxBackground extends StatelessWidget {
+  const _IslandMapParallaxBackground({
+    required this.controller,
+    required this.viewportWidth,
+    required this.viewportHeight,
+    required this.mapHeight,
+    required this.bottomPadding,
   });
 
-  final Size viewport;
-  final _IslandMapTransform transform;
-  final _IslandMapSlot slot;
-  final String title;
-  final VoidCallback onTap;
+  final ScrollController controller;
+  final double viewportWidth;
+  final double viewportHeight;
+  final double mapHeight;
+  final double bottomPadding;
 
   @override
   Widget build(BuildContext context) {
-    final anchor = transform.point(slot.labelAnchor);
-    final fontSize = (viewport.width * 0.047).clamp(22.0, 38.0).toDouble();
-    final minWidth = math.min(172.0, viewport.width - 24);
-    final maxLeft = math.max(12.0, viewport.width - minWidth - 12);
-    final left = anchor.dx.clamp(12.0, maxLeft).toDouble();
-    final availableWidth = math.max(112.0, viewport.width - left - 12);
-    final preferredWidth = math.min(
-      slot.maxLabelWidth,
-      viewport.width * slot.labelWidthFactor,
+    final scrollRange = math.max(
+      0.0,
+      mapHeight + bottomPadding - viewportHeight,
     );
-    final labelWidth = math.min(preferredWidth, availableWidth);
-    final top = anchor.dy.clamp(8.0, viewport.height - 72).toDouble();
+    final parallaxExtent = math.min(260.0, math.max(80.0, scrollRange * 0.22));
 
-    return Positioned(
-      left: left,
-      top: top,
-      width: labelWidth,
-      child: _IslandMapLabel(
-        title: title,
-        icon: slot.icon,
-        fontSize: fontSize,
-        onTap: onTap,
-      ),
-    );
-  }
-}
+    return Positioned.fill(
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.topCenter,
+          minHeight: viewportHeight + parallaxExtent,
+          maxHeight: viewportHeight + parallaxExtent,
+          child: AnimatedBuilder(
+            animation: controller,
+            builder: (context, child) {
+              final offset = controller.hasClients ? controller.offset : 0.0;
+              final dy = -math.min(parallaxExtent, offset * 0.28);
 
-class _IslandMapLabel extends StatelessWidget {
-  const _IslandMapLabel({
-    required this.title,
-    required this.icon,
-    required this.fontSize,
-    required this.onTap,
-  });
-
-  final String title;
-  final IconData icon;
-  final double fontSize;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final shadow = Shadow(
-      color: const Color(0xFF006A8D).withValues(alpha: 0.46),
-      blurRadius: 10,
-      offset: const Offset(0, 2),
-    );
-
-    return Semantics(
-      button: true,
-      label: title,
-      child: SmartStepsPressEffect(
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(999),
-            splashColor: Colors.white.withValues(alpha: 0.16),
-            highlightColor: Colors.white.withValues(alpha: 0.08),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w500,
-                        height: 1.05,
-                        shadows: [shadow],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    icon,
-                    color: Colors.white,
-                    size: fontSize * 0.86,
-                    shadows: [shadow],
-                  ),
-                ],
+              return Transform.translate(offset: Offset(0, dy), child: child);
+            },
+            child: SizedBox(
+              height: viewportHeight + parallaxExtent,
+              width: viewportWidth,
+              child: Image.asset(
+                LessonAssets.rootMapBackground,
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
               ),
             ),
           ),
@@ -1496,33 +1593,493 @@ class _IslandMapLabel extends StatelessWidget {
   }
 }
 
-class _IslandMapHitArea extends StatelessWidget {
-  const _IslandMapHitArea({
+class _IslandMapNodePositioner extends StatelessWidget {
+  const _IslandMapNodePositioner({
+    required this.viewport,
+    required this.mapHeight,
+    required this.slot,
+    required this.child,
+  });
+
+  final Size viewport;
+  final double mapHeight;
+  final _IslandMapSlot slot;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final nodeWidth = (viewport.width * slot.widthFactor)
+        .clamp(slot.minWidth, slot.maxWidth)
+        .toDouble();
+    final nodeHeight = nodeWidth * 0.74 + 44;
+    final left = (viewport.width * slot.anchor.dx - nodeWidth / 2)
+        .clamp(10.0, math.max(10.0, viewport.width - nodeWidth - 10))
+        .toDouble();
+    final top = (mapHeight * slot.anchor.dy - nodeHeight / 2)
+        .clamp(12.0, math.max(12.0, mapHeight - nodeHeight - 12))
+        .toDouble();
+
+    return Positioned(left: left, top: top, width: nodeWidth, child: child);
+  }
+}
+
+class _IslandMapNode extends StatelessWidget {
+  const _IslandMapNode({
     super.key,
-    required this.rect,
     required this.title,
+    required this.lessonCount,
+    required this.slot,
     required this.onTap,
   });
 
-  final Rect rect;
   final String title;
+  final int lessonCount;
+  final _IslandMapSlot slot;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Positioned.fromRect(
-      rect: rect,
-      child: Semantics(
-        button: true,
-        label: 'Mở $title',
+    return Semantics(
+      button: true,
+      label: title,
+      child: SmartStepsPressEffect(
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(48),
-            splashColor: Colors.white.withValues(alpha: 0.12),
-            highlightColor: Colors.white.withValues(alpha: 0.06),
+            customBorder: const CircleBorder(),
+            splashColor: DuoColors.primaryYellow.withValues(alpha: 0.18),
+            highlightColor: DuoColors.primaryYellow.withValues(alpha: 0.10),
             onTap: onTap,
-            child: const SizedBox.expand(),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 28),
+                  child: _IslandMapArt(asset: slot.asset, isLocked: false),
+                ),
+                Positioned(
+                  left: 18,
+                  bottom: 34,
+                  child: _IslandMapLabel(
+                    title: title,
+                    lessonCount: lessonCount,
+                    onTap: onTap,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HiddenIslandMapNode extends StatelessWidget {
+  const _HiddenIslandMapNode({required this.title, required this.slot});
+
+  final String title;
+  final _IslandMapSlot slot;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Opacity(
+        opacity: 0.58,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 28),
+              child: _IslandMapArt(asset: slot.asset, isLocked: true),
+            ),
+            Positioned(
+              left: 18,
+              bottom: 34,
+              child: _IslandMapLockedLabel(title: title),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapArt extends StatelessWidget {
+  const _IslandMapArt({required this.asset, required this.isLocked});
+
+  final String asset;
+  final bool isLocked;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = Image.asset(asset, fit: BoxFit.cover);
+
+    return AspectRatio(
+      aspectRatio: 1.36,
+      child: CustomPaint(
+        painter: const _IslandMapBlobShadowPainter(),
+        child: Padding(
+          padding: const EdgeInsets.all(7),
+          child: ClipPath(
+            clipper: const _IslandMapBlobClipper(),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                isLocked
+                    ? ColorFiltered(
+                        colorFilter: ColorFilter.mode(
+                          Colors.white.withValues(alpha: 0.48),
+                          BlendMode.srcATop,
+                        ),
+                        child: image,
+                      )
+                    : image,
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.25, -0.28),
+                      radius: 0.95,
+                      colors: [
+                        Colors.white.withValues(alpha: isLocked ? 0.24 : 0.14),
+                        Colors.transparent,
+                        const Color(
+                          0xFF58CC02,
+                        ).withValues(alpha: isLocked ? 0.10 : 0.18),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapBlobClipper extends CustomClipper<Path> {
+  const _IslandMapBlobClipper();
+
+  @override
+  Path getClip(Size size) {
+    final w = size.width;
+    final h = size.height;
+    return Path()
+      ..moveTo(w * 0.13, h * 0.58)
+      ..cubicTo(w * 0.02, h * 0.37, w * 0.12, h * 0.14, w * 0.34, h * 0.10)
+      ..cubicTo(w * 0.48, h * 0.00, w * 0.72, h * 0.07, w * 0.86, h * 0.24)
+      ..cubicTo(w * 1.02, h * 0.42, w * 0.91, h * 0.73, w * 0.70, h * 0.83)
+      ..cubicTo(w * 0.49, h * 0.99, w * 0.24, h * 0.86, w * 0.13, h * 0.58)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant _IslandMapBlobClipper oldClipper) => false;
+}
+
+class _IslandMapBlobShadowPainter extends CustomPainter {
+  const _IslandMapBlobShadowPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final clipper = const _IslandMapBlobClipper();
+    final inset = 7.0;
+    final innerSize = Size(size.width - inset * 2, size.height - inset * 2);
+    final path = clipper.getClip(innerSize).shift(Offset(inset, inset));
+    canvas.drawShadow(path, const Color(0x6625324B), 14, true);
+
+    final borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..color = Colors.white.withValues(alpha: 0.82);
+    canvas.drawPath(path, borderPaint);
+
+    final glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 9
+      ..color = const Color(0x6658CC02);
+    canvas.drawPath(path, glowPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _IslandMapBlobShadowPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _IslandHomeActionPanel extends StatelessWidget {
+  const _IslandHomeActionPanel({
+    required this.profile,
+    required this.island,
+    required this.islandTitle,
+    required this.onPressed,
+  });
+
+  final ChildProfile? profile;
+  final _IslandCatalogEntry island;
+  final String islandTitle;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final completedLessons = profile?.completedLessonCount ?? 0;
+    final totalPoints = profile?.totalSkillPoints ?? 0;
+    final progress = (completedLessons / 9).clamp(0, 1).toDouble();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.88),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF25324B).withValues(alpha: 0.14),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 370;
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (!isCompact) ...[
+                    _KidProfileAvatar(size: 44, profile: profile),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Học tiếp · $islandTitle',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: GameColors.ink,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$completedLessons/9 bài · $totalPoints điểm · ${island.lessonCount} bài trên đảo',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: DuoColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        DuoProgressBar(value: progress, height: 7),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _CompactMapButton(onPressed: onPressed, compact: isCompact),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactMapButton extends StatelessWidget {
+  const _CompactMapButton({required this.onPressed, this.compact = false});
+
+  final VoidCallback onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return SmartStepsPressEffect(
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.play_arrow_rounded, size: 22),
+        label: Text(compact ? 'Học' : 'Học tiếp'),
+        style: FilledButton.styleFrom(
+          minimumSize: Size(0, compact ? 40 : 42),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
+          backgroundColor: GameColors.banana,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapLabel extends StatelessWidget {
+  const _IslandMapLabel({
+    required this.title,
+    required this.lessonCount,
+    required this.onTap,
+  });
+
+  final String title;
+  final int lessonCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: title,
+      child: SmartStepsPressEffect(
+        child: _IslandMapGlassPill(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              splashColor: DuoColors.primaryYellow.withValues(alpha: 0.14),
+              highlightColor: DuoColors.primaryYellow.withValues(alpha: 0.08),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2F6818),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$lessonCount bài học',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF5D7568),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapLockedLabel extends StatelessWidget {
+  const _IslandMapLockedLabel({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return _IslandMapGlassPill(
+      opacity: 0.74,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF466055),
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 3),
+            const Text(
+              'Sắp mở khóa',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Color(0xFF7D8D84),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IslandMapGlassPill extends StatelessWidget {
+  const _IslandMapGlassPill({required this.child, this.opacity = 0.84});
+
+  final Widget child;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 214),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: opacity),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.82),
+                width: 1.4,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x2425324B),
+                  blurRadius: 16,
+                  offset: Offset(0, 7),
+                ),
+              ],
+            ),
+            child: child,
           ),
         ),
       ),
@@ -1572,101 +2129,81 @@ class _IslandMapStatusOverlay extends StatelessWidget {
   }
 }
 
-class _IslandMapTransform {
-  const _IslandMapTransform({required this.scale, required this.offset});
-
-  factory _IslandMapTransform.cover({
-    required Size source,
-    required Size viewport,
-  }) {
-    final scale = math.max(
-      viewport.width / source.width,
-      viewport.height / source.height,
-    );
-    final renderedSize = Size(source.width * scale, source.height * scale);
-
-    return _IslandMapTransform(
-      scale: scale,
-      offset: Offset(
-        (viewport.width - renderedSize.width) / 2,
-        (viewport.height - renderedSize.height) / 2,
-      ),
-    );
-  }
-
-  final double scale;
-  final Offset offset;
-
-  Offset point(Offset sourcePoint) {
-    return Offset(
-      offset.dx + sourcePoint.dx * scale,
-      offset.dy + sourcePoint.dy * scale,
-    );
-  }
-
-  Rect centeredRect(Offset sourceCenter, Size sourceSize) {
-    final center = point(sourceCenter);
-    return Rect.fromCenter(
-      center: center,
-      width: sourceSize.width * scale,
-      height: sourceSize.height * scale,
-    );
-  }
-}
-
 class _IslandMapSlot {
   const _IslandMapSlot({
-    required this.hitCenter,
-    required this.hitSize,
-    required this.labelAnchor,
-    required this.maxLabelWidth,
-    required this.labelWidthFactor,
+    required this.anchor,
+    required this.widthFactor,
+    required this.minWidth,
+    required this.maxWidth,
+    required this.asset,
     required this.icon,
   });
 
-  final Offset hitCenter;
-  final Size hitSize;
-  final Offset labelAnchor;
-  final double maxLabelWidth;
-  final double labelWidthFactor;
+  final Offset anchor;
+  final double widthFactor;
+  final double minWidth;
+  final double maxWidth;
+  final String asset;
   final IconData icon;
 }
 
-const _islandMapSourceSize = Size(1000, 1715);
-
 const _islandMapSlots = [
   _IslandMapSlot(
-    hitCenter: Offset(720, 480),
-    hitSize: Size(430, 340),
-    labelAnchor: Offset(122, 308),
-    maxLabelWidth: 420,
-    labelWidthFactor: 0.56,
+    anchor: Offset(0.62, 0.21),
+    widthFactor: 0.62,
+    minWidth: 205,
+    maxWidth: 275,
+    asset: LessonAssets.landIsland1,
     icon: Icons.card_giftcard_rounded,
   ),
   _IslandMapSlot(
-    hitCenter: Offset(360, 900),
-    hitSize: Size(520, 420),
-    labelAnchor: Offset(548, 820),
-    maxLabelWidth: 420,
-    labelWidthFactor: 0.50,
+    anchor: Offset(0.32, 0.39),
+    widthFactor: 0.66,
+    minWidth: 215,
+    maxWidth: 290,
+    asset: LessonAssets.landIsland2,
     icon: Icons.star_rounded,
   ),
   _IslandMapSlot(
-    hitCenter: Offset(735, 1390),
-    hitSize: Size(520, 420),
-    labelAnchor: Offset(140, 1264),
-    maxLabelWidth: 470,
-    labelWidthFactor: 0.64,
+    anchor: Offset(0.66, 0.57),
+    widthFactor: 0.66,
+    minWidth: 215,
+    maxWidth: 290,
+    asset: LessonAssets.landIsland3,
     icon: Icons.beach_access_rounded,
+  ),
+  _IslandMapSlot(
+    anchor: Offset(0.24, 0.74),
+    widthFactor: 0.58,
+    minWidth: 190,
+    maxWidth: 252,
+    asset: LessonAssets.landIsland1,
+    icon: Icons.explore_rounded,
+  ),
+  _IslandMapSlot(
+    anchor: Offset(0.72, 0.90),
+    widthFactor: 0.58,
+    minWidth: 190,
+    maxWidth: 252,
+    asset: LessonAssets.landIsland2,
+    icon: Icons.flag_rounded,
   ),
 ];
 
 String _islandMapTitle(_IslandCatalogEntry island, int slotIndex) {
   return switch (slotIndex) {
-    0 => 'Đảo Kho Báu',
-    1 => 'Đảo Tri Thức',
-    2 => 'Đảo Phiêu Lưu',
+    0 => 'Đảo An Toàn',
+    1 => 'Đảo Tình Bạn',
+    2 => 'Đảo Trường Học',
     _ => island.name,
+  };
+}
+
+String _hiddenIslandMapTitle(int slotIndex) {
+  return switch (slotIndex) {
+    3 => 'Đảo Khám Phá',
+    4 => 'Đảo Sáng Tạo',
+    _ => 'Đảo sắp mở',
   };
 }
 
@@ -1893,7 +2430,7 @@ class _IslandLessonMapStage extends StatelessWidget {
                 top: false,
                 child: _PillButton(
                   key: const ValueKey('start-lesson-button'),
-                  label: 'Bắt đầu bài học',
+                  label: 'Học bài đã chọn',
                   icon: Icons.play_arrow_rounded,
                   color: GameColors.banana,
                   onPressed: canStartLesson ? onStartLesson : null,
@@ -2092,16 +2629,16 @@ class _IslandLessonPathNode extends StatelessWidget {
           ),
           child: Text(
             isSelected
-                ? 'START'
+                ? 'ĐÃ CHỌN'
                 : isUnlocked
                 ? 'Bài ${situation.orderIndex}'
-                : 'PREMIUM',
+                : 'CẦN NÂNG CẤP',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: isSelected ? Colors.white : GameColors.ink,
-              fontSize: 12,
+              fontSize: isUnlocked ? 12 : 10,
               fontWeight: FontWeight.w900,
               height: 1,
             ),
@@ -2189,9 +2726,9 @@ class _IslandLessonPathPainter extends CustomPainter {
 
 String _islandLessonTitle(_IslandCatalogEntry island) {
   return switch (island.islandId) {
-    1 => 'Đảo Kho Báu',
-    2 => 'Đảo Tri Thức',
-    3 => 'Đảo Phiêu Lưu',
+    1 => 'Đảo An Toàn',
+    2 => 'Đảo Tình Bạn',
+    3 => 'Đảo Trường Học',
     _ => island.name,
   };
 }
@@ -2262,7 +2799,7 @@ class _CatalogTopBar extends StatelessWidget {
                   child: _HeaderMetricChip(
                     icon: Icons.check_circle_rounded,
                     label: '$completedLessons/9 bài',
-                    color: const Color(0xFFFFEFE0),
+                    color: DuoColors.softYellow,
                     iconColor: const Color(0xFFE86D1F),
                   ),
                 ),
@@ -2409,7 +2946,7 @@ class _AudioToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = isEnabled ? Colors.white : const Color(0xFFFFF4D6);
+    final background = isEnabled ? Colors.white : DuoColors.softYellow;
     final foreground = isEnabled
         ? DuoColors.textPrimary
         : DuoColors.textSecondary;
@@ -2502,7 +3039,7 @@ class _CatalogTopBarOld extends StatelessWidget {
                         _HeaderMetricChip(
                           icon: Icons.local_fire_department_rounded,
                           label: '0/9 bài',
-                          color: Color(0xFFFFEFE0),
+                          color: DuoColors.softYellow,
                           iconColor: Color(0xFFE86D1F),
                         ),
                         _HeaderMetricChip(
@@ -2533,12 +3070,17 @@ class _CatalogTopBarOld extends StatelessWidget {
 }
 
 class _KidProfileAvatar extends StatelessWidget {
-  const _KidProfileAvatar({required this.size});
+  const _KidProfileAvatar({required this.size, this.profile});
 
   final double size;
+  final ChildProfile? profile;
 
   @override
   Widget build(BuildContext context) {
+    final avatar = RegistrationAvatarService.findByStoragePath(
+      profile?.avatarStoragePath,
+    );
+
     return Container(
       width: size,
       height: size,
@@ -2547,17 +3089,47 @@ class _KidProfileAvatar extends StatelessWidget {
         color: Colors.white,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x2E785000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: ClipOval(
         child: ColoredBox(
-          color: const Color(0xFFBFE9FF),
-          child: Image.asset(
-            LessonAssets.kid,
-            fit: BoxFit.cover,
-            alignment: const Alignment(0, -0.35),
-          ),
+          color: avatar?.color ?? const Color(0xFFBFE9FF),
+          child: avatar == null
+              ? Image.asset(
+                  LessonAssets.kid,
+                  fit: BoxFit.cover,
+                  alignment: const Alignment(0, -0.35),
+                )
+              : _RegistrationAvatarImage(avatar: avatar),
         ),
       ),
+    );
+  }
+}
+
+class _RegistrationAvatarImage extends StatelessWidget {
+  const _RegistrationAvatarImage({required this.avatar});
+
+  final RegistrationAvatar avatar;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = avatar.imageUrl;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Image.asset(avatar.assetPath, fit: BoxFit.cover);
+    }
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) =>
+          Image.asset(avatar.assetPath, fit: BoxFit.cover),
     );
   }
 }
@@ -3305,7 +3877,7 @@ class _LessonPathNode extends StatelessWidget {
     final color = isSelected
         ? GameColors.safe
         : isUnlocked
-        ? const Color(0xFFFFC928)
+        ? DuoColors.primaryYellow
         : const Color(0xFFD7DCE2);
     final foreground = isUnlocked ? GameColors.ink : const Color(0xFF87909D);
     final lessonIcon = _situationIcon(situation);
@@ -3750,7 +4322,6 @@ class _SituationTile extends StatelessWidget {
 
 String _islandImageAsset(int islandId) {
   return switch (islandId) {
-    1 => LessonAssets.safetyIsland,
     _ => LessonAssets.islandIcon,
   };
 }
@@ -3897,19 +4468,19 @@ Color _islandAccent(int islandId) {
 const _fallbackIslandEntries = [
   _IslandCatalogEntry(
     islandId: 1,
-    name: 'Đảo an toàn cá nhân',
+    name: 'Đảo An Toàn',
     orderIndex: 1,
     lessonCount: 3,
   ),
   _IslandCatalogEntry(
     islandId: 2,
-    name: 'Đảo an toàn xã hội',
+    name: 'Đảo Tình Bạn',
     orderIndex: 2,
     lessonCount: 3,
   ),
   _IslandCatalogEntry(
     islandId: 3,
-    name: 'Đảo an toàn môi trường',
+    name: 'Đảo Trường Học',
     orderIndex: 3,
     lessonCount: 3,
   ),
@@ -4286,12 +4857,15 @@ class LessonAssets {
 
   static const logo = 'assets/images/logo/logo smartstep-01.png';
   static const islandBackground = 'assets/images/inslandBackground.png';
+  static const rootMapBackground = 'assets/images/land/screen.png';
+  static const landIsland1 = 'assets/images/land/bg-land-1.png';
+  static const landIsland2 = 'assets/images/land/bg-land-2.png';
+  static const landIsland3 = 'assets/images/land/bg-land-3.png';
   static const island1Background = 'assets/images/Insland1_Background.png';
   static const island2Background = 'assets/images/Insland2_Background.png';
   static const island3Background = 'assets/images/Insland3_Background.png';
   static const livingRoom = 'assets/images/living_room.jpg';
   static const islandIcon = 'assets/images/Island_Icon.png';
-  static const safetyIsland = 'assets/images/island/safety-island.png';
   static const kid = 'assets/images/kid.png';
   static const childHappy = 'assets/images/child-happy.png';
   static const childChoking = 'assets/images/child-choking.png';

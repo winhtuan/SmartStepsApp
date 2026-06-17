@@ -1,8 +1,8 @@
 import '../models/situation.dart';
 
-const _personalSafetyIsland = 'Đảo an toàn cá nhân';
-const _socialSafetyIsland = 'Đảo an toàn xã hội';
-const _environmentSafetyIsland = 'Đảo an toàn môi trường';
+const _personalSafetyIsland = 'Đảo An Toàn';
+const _socialSafetyIsland = 'Đảo Tình Bạn';
+const _environmentSafetyIsland = 'Đảo Trường Học';
 
 const offlineIslandSummaries = [
   IslandSummary(
@@ -10,7 +10,7 @@ const offlineIslandSummaries = [
     name: _personalSafetyIsland,
     description:
         'Bé học cách nhận biết nguy hiểm gần cơ thể và đồ dùng quen thuộc.',
-    imageUrl: 'assets/images/island/safety-island.png',
+    imageUrl: 'assets/images/Island_Icon.png',
     orderIndex: 1,
     status: 'Published',
     situationCount: 3,

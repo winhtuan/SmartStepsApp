@@ -718,7 +718,7 @@ class _SkillScoreRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: entry.points > 0
             ? const Color(0xFFF4FFE8)
-            : const Color(0xFFFFF8E1),
+            : DuoColors.background,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: DuoColors.border.withValues(alpha: 0.72)),
       ),
@@ -986,7 +986,7 @@ class _ReportNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF4D6),
+        color: DuoColors.softYellow,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: DuoColors.border, width: 2),
       ),
