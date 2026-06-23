@@ -40,7 +40,7 @@ class LoginScreen extends StatelessWidget {
                     child: Align(
                       alignment: const Alignment(0, -0.72),
                       child: Image.asset(
-                        'assets/images/logo/logo smartstep-01.png',
+                        'assets/images/logo/logo smartstep-01.webp',
                         width: 190 * scale,
                         fit: BoxFit.contain,
                       ),
