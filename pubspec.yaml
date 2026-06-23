@@ -71,6 +71,7 @@ flutter:
     - assets/images/land/
     - assets/images/mascot/
     - assets/images/avatars/
+    - assets/videos/
     - assets/audio/
     - assets/voices/Crossroad/
     - assets/voices/Safety_smallitems/

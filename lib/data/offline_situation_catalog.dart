@@ -64,17 +64,68 @@ final offlineSituationDetails = <SituationDetail>[
         'Nếu con nhặt được một viên bi hoặc vật nhỏ lạ trên sàn, con nên làm gì?',
     riskAlert:
         'Trẻ nhỏ khám phá thế giới bằng cách ngậm đồ vật. Hãy giữ các loại pin nút, nam châm hoặc những dị vật xa tầm tay bé.',
-    introMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136864/Safety_smallitems_intro_cw1tlh.mp4',
-    wrongMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136866/Safety_smallitems_wrong_pjogba.mp4',
-    correctMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136882/Safety_smallitems_correct_u5ubla.mp4',
+    introMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136864/Safety_smallitems_intro_cw1tlh.mp4',
+    wrongMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136866/Safety_smallitems_wrong_pjogba.mp4',
+    correctMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136882/Safety_smallitems_correct_u5ubla.mp4',
     questionVoice: 'assets/voices/Safety_smallitems/question.mp3',
     optionAVoice: 'assets/voices/Safety_smallitems/choice-put-mouth.mp3',
     optionBVoice: 'assets/voices/Safety_smallitems/choice-ask-adult.mp3',
     optionAImage: 'assets/images/flashCard/Safety_smallitems/wrong.webp',
     optionBImage: 'assets/images/flashCard/Safety_smallitems/Correct.webp',
+  ),
+  _lesson(
+    situationId: 102,
+    islandId: 1,
+    islandName: _personalSafetyIsland,
+    title: 'Bài 2: Bàn tay kỳ diệu và các cái lỗ',
+    intro: 'Bé học không chạm tay hoặc nhét vật lạ vào ổ cắm điện.',
+    scenario:
+        'Bé đang cầm một thanh đồ chơi bằng sắt nhỏ và nhìn thấy hai lỗ của ổ cắm điện trên tường.',
+    question: 'Khi thấy ổ cắm điện, con nên làm gì?',
+    optionA: 'Chọc thanh sắt vào lỗ xem robot có biến hình không.',
+    optionB: 'Cất thanh sắt vào hộp đồ chơi và tránh xa ổ điện.',
+    wrongStory:
+        'Chọc đồ kim loại vào ổ điện có thể bị điện giật rất đau và rất nguy hiểm.',
+    correctStory:
+        'Bé quay lưng lại with ổ điện và tiếp tục chơi ở nơi an toàn. Reward: Bé biết tránh xa ổ điện! +1 Safety Star.',
+    correctFeedback:
+        'Hoan hô bé! Ổ điện không phải là đồ chơi, tránh xa ổ điện là an toàn nhất.',
+    wrongFeedback:
+        'Không bao giờ được dùng tay hoặc đồ vật chọc vào ổ điện con nhé.',
+    skillName: 'An toàn điện',
+    skillDescription:
+        'Nhận biết mối nguy hiểm từ dòng điện; không tự ý chạm hoặc nhét vật lạ vào ổ cắm.',
+    practicePrompt:
+        'Con có được tự ý dùng tay hoặc đồ vật chọc vào ổ cắm điện không?',
+    riskAlert:
+        'Trẻ rất thích khám phá các cấu trúc dạng lỗ. Hãy sử dụng nắp đậy ổ điện an toàn cho toàn bộ ổ cắm tầm thấp.',
+  ),
+  _lesson(
+    situationId: 103,
+    islandId: 1,
+    islandName: _personalSafetyIsland,
+    title: 'Bài 3: Cơn nghiện "ấn nút"',
+    intro: 'Bé học tránh xa bình thủy, nước nóng và các nút bấm nguy hiểm.',
+    scenario:
+        'Mẹ vừa đun nước xong, chiếc bình thủy điện có nút đỏ phát sáng được đặt trên bàn thấp.',
+    question: 'Khi thấy bình nước nóng, con nên làm gì?',
+    optionA: 'Nhấn thử cái nút đỏ xem chuyện gì xảy ra.',
+    optionB: 'Tránh xa chiếc bình và đi tìm mẹ.',
+    wrongStory:
+        'Nước trong bình cực kỳ nóng, ấn nút có thể làm nước sôi tràn ra gây bỏng tay.',
+    correctStory:
+        'Bé rụt tay lại, không bấm nút và chạy đi tìm mẹ. Reward: Bé không nghịch thiết bị nước nóng! +1 Safety Star.',
+    correctFeedback:
+        'Giỏi lắm! Bé đã nhận biết được nước nóng nguy hiểm và không nghịch nút bấm lung tung.',
+    wrongFeedback:
+        'Khi thấy bình nước nóng, con tuyệt đối không được tự ý ấn nút hay nghịch ngợm nhé.',
+    skillName: 'An toàn nước nóng',
+    skillDescription:
+        'Nhận biết mối nguy hại từ các thiết bị gia dụng có chứa nước sôi/nhiệt độ cao; kiềm chế hành vi tò mò nguy hiểm.',
+    practicePrompt:
+        'Khi nhìn thấy phích nước hoặc bình nước nóng, con nên làm gì?',
+    riskAlert:
+        'Trẻ không định nghịch nước nóng, trẻ chỉ thích cảm giác được ấn nút hoặc gạt cần. Hãy luôn bật khóa an toàn trẻ em trên các thiết bị này.',
   ),
   _lesson(
     situationId: 201,
@@ -100,12 +151,9 @@ final offlineSituationDetails = <SituationDetail>[
         'Nếu một người lạ gọi đúng tên con và bảo lên xe để chở về với bố mẹ, con có đi theo không?',
     riskAlert:
         'Bé rất dễ mất cảnh giác khi người lạ ăn mặc đẹp, tỏ ra thân thiện và biết rõ tên bé.',
-    introMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136847/Safety_stranger_Intro_chanol.mp4',
-    wrongMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136791/Safety_stranger_wrong_dgsjbj.mp4',
-    correctMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136761/Safety_stranger_correct_rkwehk.mp4',
+    introMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136847/Safety_stranger_Intro_chanol.mp4',
+    wrongMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136791/Safety_stranger_wrong_dgsjbj.mp4',
+    correctMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136761/Safety_stranger_correct_rkwehk.mp4',
     questionVoice: 'assets/voices/Safety_stranger/question_l3.mp3',
     optionAVoice: 'assets/voices/Safety_stranger/wrong_l3.mp3',
     optionBVoice: 'assets/voices/Safety_stranger/correct_l3.mp3',
@@ -189,12 +237,9 @@ final offlineSituationDetails = <SituationDetail>[
     skillDescription: 'Biết chờ đèn xanh trước khi qua đường.',
     practicePrompt: 'Đèn màu gì thì mình mới được đi qua đường hả con?',
     riskAlert: 'Bé vẫn hay quên nhìn hai bên trước khi qua đường.',
-    introMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136588/cross-road-intro_tnrhmy.mp4',
-    wrongMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136583/cross-road-wrong_fnc8fg.mp4',
-    correctMedia:
-        'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136648/cross-road-correct_r36izw.mp4',
+    introMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136588/cross-road-intro_tnrhmy.mp4',
+    wrongMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136583/cross-road-wrong_fnc8fg.mp4',
+    correctMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136648/cross-road-correct_r36izw.mp4',
     questionVoice: 'assets/voices/Crossroad/Question.mp3',
     optionAVoice: 'assets/voices/Crossroad/wrong.mp3',
     optionBVoice: 'assets/voices/Crossroad/correct.mp3',
@@ -348,37 +393,19 @@ SituationDetail _lesson({
 }
 
 List<SituationSummary> offlineSituationSummaries() {
-  return [
-    ...offlineSituationDetails.map(
-      (detail) => SituationSummary(
-        situationId: detail.situationId,
-        islandId: detail.islandId,
-        islandName: detail.islandName,
-        title: detail.title,
-        intro: detail.intro,
-        orderIndex: detail.orderIndex,
-        status: detail.status,
-      ),
-    ),
-    SituationSummary(
-      situationId: 102,
-      islandId: 1,
-      islandName: _personalSafetyIsland,
-      title: '',
-      intro: '',
-      orderIndex: 2,
-      status: 'Draft',
-    ),
-    SituationSummary(
-      situationId: 103,
-      islandId: 1,
-      islandName: _personalSafetyIsland,
-      title: '',
-      intro: '',
-      orderIndex: 3,
-      status: 'Draft',
-    ),
-  ];
+  return offlineSituationDetails
+      .map(
+        (detail) => SituationSummary(
+          situationId: detail.situationId,
+          islandId: detail.islandId,
+          islandName: detail.islandName,
+          title: detail.title,
+          intro: detail.intro,
+          orderIndex: detail.orderIndex,
+          status: detail.status,
+        ),
+      )
+      .toList(growable: false);
 }
 
 List<SituationSummary> offlineSituationSummariesForIsland(int islandId) {
