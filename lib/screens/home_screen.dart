@@ -1365,7 +1365,7 @@ class _IslandCompletionDialogState extends State<_IslandCompletionDialog>
                             child: Column(
                               children: [
                                 Text(
-                                  widget.allLessonsCompleted ? 'HOÀN THÀNH XUẤT SẮC!' : 'HOÀN THÀNH ĐẢO!',
+                                  widget.allLessonsCompleted ? 'HOÀN THÀNH XUẤT SẮC!' : 'HOÀN THÀNH rẢO!',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     color: Color(0xFF2E7D32),
