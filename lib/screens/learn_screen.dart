@@ -603,6 +603,21 @@ class _MascotInsightCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                const SizedBox(height: 10),
+                _YellowReportRow(
+                  icon: Icons.help_rounded,
+                  text: focusEntry.realLifeQuestion,
+                ),
+                const SizedBox(height: 8),
+                _YellowReportRow(
+                  icon: Icons.lightbulb_rounded,
+                  text: focusEntry.practicePrompt,
+                ),
+                const SizedBox(height: 8),
+                _YellowReportRow(
+                  icon: Icons.health_and_safety_rounded,
+                  text: focusEntry.watchOut,
+                ),
               ],
             ),
           ),
@@ -1170,21 +1185,6 @@ const _fallbackParentReportEntries = [
     watchOut: 'Giữ pin nút, nam châm và dị vật nhỏ xa tầm tay của bé.',
   ),
   _ParentReportEntry(
-    situationId: 2,
-    islandId: 1,
-    situationOrder: 2,
-    islandName: 'An toàn cá nhân',
-    lessonTitle: 'Bài 2: Bàn tay kỳ diệu và các cái lỗ',
-    skillName: 'An toàn điện',
-    skillDescription:
-        'Nhận biết ổ điện nguy hiểm và không chọc vật lạ vào ổ cắm.',
-    realLifeQuestion:
-        'Ổ cắm điện có phải đồ chơi không? Con nên đứng gần hay tránh xa?',
-    practicePrompt:
-        'Đi một vòng quanh nhà và chỉ cho bé các vị trí ổ điện cần tránh.',
-    watchOut: 'Ưu tiên dùng nắp đậy ổ điện ở các vị trí thấp trong nhà.',
-  ),
-  _ParentReportEntry(
     situationId: 3,
     islandId: 2,
     situationOrder: 1,
@@ -1284,12 +1284,16 @@ class _SegmentButton extends StatelessWidget {
               size: 20,
             ),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? DuoColors.textPrimary : DuoColors.textSecondary,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isSelected ? DuoColors.textPrimary : DuoColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ],

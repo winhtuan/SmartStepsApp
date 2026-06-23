@@ -71,23 +71,16 @@ void main() {
     expect(find.text('Bỏ qua clip'), findsNothing);
 
     await tester.tap(find.text(_fakeFlashcard.optionB));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.tap(find.text('Bỏ qua clip'));
-    await tester.pump(const Duration(milliseconds: 250));
-
-    expect(find.text('Tuyệt vời!'), findsOneWidget);
-    expect(find.text('Nhận sao'), findsNothing);
-
-    await tester.pump(const Duration(milliseconds: 5400));
+    expect(find.text('Hoàn thành màn chơi!'), findsOneWidget);
+    expect(find.text('+3 Safety Stars'), findsOneWidget);
+    expect(find.text('+20 Xu'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('lesson-reward-continue-button')),
+      findsOneWidget,
+    );
     expect(find.text('Kid knows API safety! +1 Safety Star'), findsNothing);
-    expect(find.text('Chạm để nhận sao'), findsNothing);
-
-    await tester.tap(find.byKey(const ValueKey('celebration-tap-hint')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1400));
-
-    expect(find.text('Kid knows API safety! +1 Safety Star'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
   });
 
@@ -252,7 +245,7 @@ Future<void> _completeRegistration(WidgetTester tester) async {
   );
   await _tapRegistrationPrimary(tester);
   await tester.tap(
-    find.byKey(const ValueKey('registration-avatar-avatars/cat.png')),
+    find.byKey(const ValueKey('registration-avatar-avatars/cat.webp')),
   );
   await _tapRegistrationPrimary(tester);
   final termsToggle = find.byKey(const ValueKey('registration-terms-toggle'));

@@ -8,9 +8,11 @@ Always read these files first:
    - Understand project-specific coding rules, conventions, and requirements.
    - Follow the instructions inside relevant skill files before making changes.
 
-2. `.code-review-graph/`
-   - Check `graph.html` or `graph.db` if available.
+2. `.codegraph/`
+   - Check `codegraph.db` if available.
    - Use it to understand module relationships, dependencies, and possible impact before editing code.
+
+3. `CLAUDE.md`
 
 ## Coding rules
 

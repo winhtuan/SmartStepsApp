@@ -73,7 +73,7 @@ void main() {
     expect(profile?.age, '6');
     expect(profile?.gender, 'Nam');
     expect(profile?.learningGoals, contains('Biết quan sát và đặt câu hỏi'));
-    expect(profile?.avatarStoragePath, 'avatars/cat.png');
+    expect(profile?.avatarStoragePath, 'avatars/cat.webp');
     expect(profile?.acceptedTerms, isTrue);
   });
 
@@ -182,7 +182,7 @@ Future<void> _completeWizard(WidgetTester tester) async {
   );
   await _tapPrimary(tester);
   await tester.tap(
-    find.byKey(const ValueKey('registration-avatar-avatars/cat.png')),
+    find.byKey(const ValueKey('registration-avatar-avatars/cat.webp')),
   );
   await _tapPrimary(tester);
   final termsToggle = find.byKey(const ValueKey('registration-terms-toggle'));
