@@ -13,10 +13,10 @@ import 'app_feedback_dialog.dart';
 class _LearnMascots {
   const _LearnMascots._();
 
-  static const happyWave = 'assets/images/mascot/mascot-cat-happy-wave.png';
-  static const speaking = 'assets/images/mascot/mascot-cat-speaking.png';
-  static const confident = 'assets/images/mascot/mascot-cat-confident.png';
-  static const sulking = 'assets/images/mascot/mascot-cat-sulking.png';
+  static const happyWave = 'assets/images/mascot/mascot-cat-happy-wave.webp';
+  static const speaking = 'assets/images/mascot/mascot-cat-speaking.webp';
+  static const confident = 'assets/images/mascot/mascot-cat-confident.webp';
+  static const sulking = 'assets/images/mascot/mascot-cat-sulking.webp';
 }
 
 class ParentReportPage extends StatefulWidget {
@@ -1220,21 +1220,6 @@ const _fallbackParentReportEntries = [
     practicePrompt:
         'Cùng bé kiểm tra đồ chơi xem có chi tiết nhỏ bị rơi ra không.',
     watchOut: 'Giữ pin nút, nam châm và dị vật nhỏ xa tầm tay của bé.',
-  ),
-  _ParentReportEntry(
-    situationId: 2,
-    islandId: 1,
-    situationOrder: 2,
-    islandName: 'An toàn cá nhân',
-    lessonTitle: 'Bài 2: Bàn tay kỳ diệu và các cái lỗ',
-    skillName: 'An toàn điện',
-    skillDescription:
-        'Nhận biết ổ điện nguy hiểm và không chọc vật lạ vào ổ cắm.',
-    realLifeQuestion:
-        'Ổ cắm điện có phải đồ chơi không? Con nên đứng gần hay tránh xa?',
-    practicePrompt:
-        'Đi một vòng quanh nhà và chỉ cho bé các vị trí ổ điện cần tránh.',
-    watchOut: 'Ưu tiên dùng nắp đậy ổ điện ở các vị trí thấp trong nhà.',
   ),
   _ParentReportEntry(
     situationId: 3,

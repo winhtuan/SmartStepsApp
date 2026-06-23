@@ -32,7 +32,7 @@ class RegistrationNameStep extends StatelessWidget {
     return _StepFrame(
       title: 'Bé tên là gì?',
       subtitle: 'Tên này sẽ xuất hiện trong bài học và phần thưởng.',
-      mascotAsset: 'assets/images/mascot/mascot-cat-happy-wave.png',
+      mascotAsset: 'assets/images/mascot/mascot-cat-happy-wave.webp',
       child: TextField(
         key: const ValueKey('registration-name-field'),
         controller: controller,
@@ -67,7 +67,7 @@ class RegistrationAgeStep extends StatelessWidget {
     return _StepFrame(
       title: 'Bé bao nhiêu tuổi?',
       subtitle: 'SmartSteps sẽ điều chỉnh cách diễn đạt phù hợp với độ tuổi.',
-      mascotAsset: 'assets/images/mascot/mascot-cat-speaking.png',
+      mascotAsset: 'assets/images/mascot/mascot-cat-speaking.webp',
       child: LayoutBuilder(
         builder: (context, constraints) {
           final columns = constraints.maxWidth >= 520 ? 5 : 3;
@@ -114,7 +114,7 @@ class RegistrationGenderStep extends StatelessWidget {
     return _StepFrame(
       title: 'Giới tính của bé?',
       subtitle: 'Thông tin này giúp hồ sơ của bé đầy đủ hơn.',
-      mascotAsset: 'assets/images/mascot/mascot-cat-confident.png',
+      mascotAsset: 'assets/images/mascot/mascot-cat-confident.webp',
       child: Column(
         children: [
           for (final option in options) ...[
@@ -147,7 +147,7 @@ class RegistrationGoalsStep extends StatelessWidget {
     return _StepFrame(
       title: 'Bé muốn học điều gì?',
       subtitle: 'Có thể chọn nhiều mục tiêu. Bạn có thể thay đổi sau.',
-      mascotAsset: 'assets/images/mascot/mascot-cat-singing.png',
+      mascotAsset: 'assets/images/mascot/mascot-cat-singing.webp',
       child: Column(
         children: [
           for (final goal in registrationLearningGoals) ...[
@@ -278,7 +278,7 @@ class RegistrationTermsStep extends StatelessWidget {
     return _StepFrame(
       title: 'Sẵn sàng bắt đầu',
       subtitle: 'Phụ huynh kiểm tra lại hồ sơ trước khi lưu trên thiết bị.',
-      mascotAsset: 'assets/images/mascot/mascot-cat-happy.png',
+      mascotAsset: 'assets/images/mascot/mascot-cat-happy.webp',
       child: Column(
         children: [
           Container(

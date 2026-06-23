@@ -94,7 +94,7 @@ class _SmartStepsBootstrapAppState extends State<_SmartStepsBootstrapApp> {
   bool _isPreloadableImageAsset(String asset) {
     final lower = asset.toLowerCase();
     return lower.startsWith('assets/images/') &&
-        (lower.endsWith('.png') ||
+        (lower.endsWith('.webp') ||
             lower.endsWith('.jpg') ||
             lower.endsWith('.jpeg') ||
             lower.endsWith('.webp'));
@@ -1915,14 +1915,14 @@ class _CompactMapButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = compact ? 'Học' : 'Học tiếp';
+
     return SmartStepsPressEffect(
-      child: FilledButton.icon(
+      child: FilledButton(
         onPressed: onPressed,
-        icon: const Icon(Icons.play_arrow_rounded, size: 22),
-        label: Text(compact ? 'Học' : 'Học tiếp'),
         style: FilledButton.styleFrom(
-          minimumSize: Size(0, compact ? 40 : 42),
-          padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
+          fixedSize: Size(compact ? 76 : 112, compact ? 40 : 42),
+          padding: EdgeInsets.zero,
           backgroundColor: GameColors.banana,
           foregroundColor: Colors.white,
           elevation: 0,
@@ -1930,6 +1930,20 @@ class _CompactMapButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(999),
           ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.play_arrow_rounded, size: 20),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(height: 1),
+            ),
+          ],
         ),
       ),
     );
@@ -2901,8 +2915,8 @@ class _AudioToggleCluster extends StatelessWidget {
           children: [
             _AudioToggleButton(
               tooltip: controller.isMusicEnabled
-                  ? 'Táº¯t nháº¡c ná»n'
-                  : 'Báº­t nháº¡c ná»n',
+                  ? 'Tắt nhạc nền'
+                  : 'Bật nhạc nền',
               icon: controller.isMusicEnabled
                   ? Icons.music_note_rounded
                   : Icons.music_off_rounded,
@@ -2913,8 +2927,8 @@ class _AudioToggleCluster extends StatelessWidget {
             const SizedBox(width: 8),
             _AudioToggleButton(
               tooltip: controller.isSfxEnabled
-                  ? 'Táº¯t Ã¢m thanh nÃºt'
-                  : 'Báº­t Ã¢m thanh nÃºt',
+                  ? 'Tắt âm thanh nút'
+                  : 'B?t ?m thanh n?t',
               icon: controller.isSfxEnabled
                   ? Icons.ads_click_rounded
                   : Icons.volume_off_rounded,
@@ -3268,13 +3282,22 @@ _IslandCatalogEntry? _islandById(
   return null;
 }
 
+bool _isSituationPublished(SituationSummary situation) {
+  return situation.status.toLowerCase() == 'published';
+}
+
 bool _requiresPremium(SituationSummary situation) {
   return (situation.islandId == 2 || situation.islandId == 3) &&
       situation.orderIndex >= 2;
 }
 
 bool _isSituationUnlocked(SituationSummary situation, bool isPremium) {
-  return isPremium || !_requiresPremium(situation);
+  return _isSituationPublished(situation) &&
+      (isPremium || !_requiresPremium(situation));
+}
+
+String _lockedSituationLabel(SituationSummary situation) {
+  return _isSituationPublished(situation) ? 'PREMIUM' : 'SẮP MỞ';
 }
 
 // ignore: unused_element
@@ -3946,10 +3969,10 @@ class _LessonPathNode extends StatelessWidget {
             ),
             child: Text(
               isSelected
-                  ? 'START'
+                  ? 'ĐÃ CHỌN'
                   : isUnlocked
                   ? 'Bài ${situation.orderIndex}'
-                  : 'PREMIUM',
+                  : _lockedSituationLabel(situation),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -4333,7 +4356,7 @@ String _situationImageAsset(SituationSummary situation) {
     LessonAssets.childHappy,
     LessonAssets.mother,
     LessonAssets.childChoking,
-    LessonAssets.rewardStar,
+    LessonAssets.islandIcon,
   ];
 
   return assets[(situation.orderIndex - 1).abs() % assets.length];
@@ -4826,14 +4849,9 @@ enum LessonPhase {
   inspectObject,
   correctVideo,
   wrongVideo,
-  correct,
   wrong,
-  rewardBurst,
-  reward,
   parent,
 }
-
-const _rewardBurstDuration = Duration(milliseconds: 1250);
 
 enum ChoiceTone { safe, danger }
 
@@ -4855,31 +4873,31 @@ class GameColors {
 class LessonAssets {
   const LessonAssets._();
 
-  static const logo = 'assets/images/logo/logo smartstep-01.png';
-  static const islandBackground = 'assets/images/inslandBackground.png';
-  static const rootMapBackground = 'assets/images/land/screen.png';
-  static const landIsland1 = 'assets/images/land/bg-land-1.png';
-  static const landIsland2 = 'assets/images/land/bg-land-2.png';
-  static const landIsland3 = 'assets/images/land/bg-land-3.png';
-  static const island1Background = 'assets/images/Insland1_Background.png';
-  static const island2Background = 'assets/images/Insland2_Background.png';
-  static const island3Background = 'assets/images/Insland3_Background.png';
-  static const livingRoom = 'assets/images/living_room.jpg';
-  static const islandIcon = 'assets/images/Island_Icon.png';
-  static const kid = 'assets/images/kid.png';
-  static const childHappy = 'assets/images/child-happy.png';
-  static const childChoking = 'assets/images/child-choking.png';
-  static const mother = 'assets/images/mother.png';
-  static const ball = 'assets/images/ball.png';
-  static const mascot = 'assets/images/mascot/mascot-cat-happy.png';
+  static const logo = 'assets/images/logo/logo smartstep-01.webp';
+  static const islandBackground = 'assets/images/inslandBackground.webp';
+  static const rootMapBackground = 'assets/images/land/screen.webp';
+  static const landIsland1 = 'assets/images/land/bg-land-1.webp';
+  static const landIsland2 = 'assets/images/land/bg-land-2.webp';
+  static const landIsland3 = 'assets/images/land/bg-land-3.webp';
+  static const rewardBackground = 'assets/images/land/reward.webp';
+  static const island1Background = 'assets/images/Insland1_Background.webp';
+  static const island2Background = 'assets/images/Insland2_Background.webp';
+  static const island3Background = 'assets/images/Insland3_Background.webp';
+  static const livingRoom = 'assets/images/living_room.webp';
+  static const islandIcon = 'assets/images/Island_Icon.webp';
+  static const kid = 'assets/images/kid.webp';
+  static const childHappy = 'assets/images/child-happy.webp';
+  static const childChoking = 'assets/images/child-choking.webp';
+  static const mother = 'assets/images/mother.webp';
+  static const ball = 'assets/images/ball.webp';
+  static const mascot = 'assets/images/mascot/mascot-cat-happy.webp';
   static const mascotHappyWave =
-      'assets/images/mascot/mascot-cat-happy-wave.png';
-  static const mascotSpeaking = 'assets/images/mascot/mascot-cat-speaking.png';
-  static const mascotSinging = 'assets/images/mascot/mascot-cat-singing.png';
+      'assets/images/mascot/mascot-cat-happy-wave.webp';
+  static const mascotSpeaking = 'assets/images/mascot/mascot-cat-speaking.webp';
+  static const mascotSinging = 'assets/images/mascot/mascot-cat-singing.webp';
   static const mascotConfident =
-      'assets/images/mascot/mascot-cat-confident.png';
-  static const mascotSulking = 'assets/images/mascot/mascot-cat-sulking.png';
-  static const rewardStar = 'assets/images/reward-star.png';
+      'assets/images/mascot/mascot-cat-confident.webp';
+  static const mascotSulking = 'assets/images/mascot/mascot-cat-sulking.webp';
 }
 
 class SafetyLesson {
@@ -4904,7 +4922,6 @@ class SafetyLesson {
     required this.wrongExplanation,
     required this.correctTitle,
     required this.correctExplanation,
-    required this.rewardTitle,
     required this.learningGoals,
     required this.choices,
     required this.parentNotes,
@@ -4930,7 +4947,6 @@ class SafetyLesson {
   final String wrongExplanation;
   final String correctTitle;
   final String correctExplanation;
-  final String rewardTitle;
   final List<String> learningGoals;
   final List<LessonChoice> choices;
   final ParentNotes parentNotes;
@@ -5078,8 +5094,6 @@ SafetyLesson _lessonFromSituation(SituationDetail situation) {
     correctTitle: 'Con làm đúng rồi!',
     correctExplanation:
         flashcard?.correctFeedback ?? _shortCopy(correctStep?.content) ?? '',
-    rewardTitle:
-        _rewardTitle(correctStep?.content) ?? 'Một ngôi sao an toàn cho bé!',
     learningGoals: _learningGoalsFor(situation),
     choices: [
       _choiceFromFlashcard(
@@ -5277,22 +5291,6 @@ String? _kidWarningCopy(String? value) {
   return '$short...';
 }
 
-String? _rewardTitle(String? value) {
-  final text = value?.trim();
-  if (text == null || text.isEmpty) {
-    return null;
-  }
-
-  final rewardIndex = text.toLowerCase().indexOf('reward:');
-  if (rewardIndex < 0) {
-    return null;
-  }
-
-  final reward = text.substring(rewardIndex + 'reward:'.length).trim();
-  final endIndex = reward.indexOf('.');
-  return endIndex < 0 ? reward : reward.substring(0, endIndex).trim();
-}
-
 const correctChoiceId = 'ask-adult';
 const _voicePlaybackRate = 0.82;
 const _voiceVolume = 0.82;
@@ -5408,12 +5406,13 @@ class LessonGameScreen extends StatefulWidget {
 }
 
 class _LessonGameScreenState extends State<LessonGameScreen> {
-  LessonPhase _phase = LessonPhase.introVideo;
+  late LessonPhase _phase;
   String? _selectedChoiceId;
   bool _parentReadingMode = false;
   bool _hasRecordedCompletion = false;
-  Timer? _rewardTimer;
   SmartStepsAudioController? _audioController;
+
+  bool get _usesTemplateLesson => widget.lesson.islandId >= 2;
 
   LessonChoice? get _selectedChoice {
     for (final choice in widget.lesson.choices) {
@@ -5424,27 +5423,23 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     return null;
   }
 
-  bool get _hasReward {
-    return _phase == LessonPhase.reward || _phase == LessonPhase.parent;
-  }
-
   bool get _isVideoPhase {
-    return _phase == LessonPhase.introVideo ||
-        _phase == LessonPhase.correctVideo ||
-        _phase == LessonPhase.wrongVideo;
+    return _phase == LessonPhase.introVideo || _phase == LessonPhase.wrongVideo;
   }
 
   bool get _isResultFocusPhase {
-    return _phase == LessonPhase.correct ||
-        _phase == LessonPhase.wrong ||
-        _phase == LessonPhase.rewardBurst ||
-        _phase == LessonPhase.reward;
+    return _phase == LessonPhase.wrong;
   }
 
   @override
   void initState() {
     super.initState();
+    _phase = _initialLessonPhase;
     unawaited(_enterLessonViewingMode());
+  }
+
+  LessonPhase get _initialLessonPhase {
+    return _usesTemplateLesson ? LessonPhase.opening : LessonPhase.introVideo;
   }
 
   @override
@@ -5462,7 +5457,6 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
   @override
   void dispose() {
-    _rewardTimer?.cancel();
     _audioController?.stopCelebration();
     _audioController?.restoreMusic();
     unawaited(_restoreSystemViewingMode());
@@ -5471,8 +5465,13 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
   Future<void> _enterLessonViewingMode() async {
     try {
-      await SystemChrome.setPreferredOrientations(_lessonLandscapeOrientations);
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      if (_usesTemplateLesson) {
+        await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      } else {
+        await SystemChrome.setPreferredOrientations(_lessonLandscapeOrientations);
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      }
     } catch (_) {
       // Orientation and fullscreen APIs are unavailable on some test/desktop hosts.
     }
@@ -5488,12 +5487,11 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   void _restartLesson() {
-    _rewardTimer?.cancel();
     _audioController?.stopCelebration();
     setState(() {
       _selectedChoiceId = null;
       _hasRecordedCompletion = false;
-      _phase = LessonPhase.introVideo;
+      _phase = _initialLessonPhase;
     });
   }
 
@@ -5509,33 +5507,25 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   void _completeVideo() {
-    var shouldPlayCelebration = false;
     var shouldPlayWarning = false;
 
     setState(() {
       switch (_phase) {
         case LessonPhase.introVideo:
           _phase = LessonPhase.inspectObject;
-        case LessonPhase.correctVideo:
-          _phase = LessonPhase.correct;
-          shouldPlayCelebration = true;
         case LessonPhase.wrongVideo:
           _phase = LessonPhase.wrong;
           shouldPlayWarning = true;
         case LessonPhase.opening:
         case LessonPhase.inspectObject:
-        case LessonPhase.correct:
+        case LessonPhase.correctVideo:
         case LessonPhase.wrong:
-        case LessonPhase.rewardBurst:
-        case LessonPhase.reward:
         case LessonPhase.parent:
           break;
       }
     });
 
-    if (shouldPlayCelebration) {
-      _audioController?.playCelebration();
-    } else if (shouldPlayWarning) {
+    if (shouldPlayWarning) {
       _audioController?.playWarning();
     }
   }
@@ -5562,9 +5552,13 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     setState(() {
       _selectedChoiceId = choiceId;
       _phase = selectedChoice.isCorrect
-          ? LessonPhase.correctVideo
+          ? LessonPhase.parent
           : LessonPhase.wrongVideo;
     });
+
+    if (selectedChoice.isCorrect) {
+      _showReward();
+    }
   }
 
   void _retryChoice() {
@@ -5576,31 +5570,12 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   void _showReward() {
-    _rewardTimer?.cancel();
     _audioController?.stopCelebration();
     if (!_hasRecordedCompletion) {
       _hasRecordedCompletion = true;
       unawaited(_recordLessonCompletion());
     }
     _audioController?.playSuccess();
-    setState(() {
-      _phase = LessonPhase.rewardBurst;
-    });
-
-    _rewardTimer = Timer(_rewardBurstDuration, () {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _phase = LessonPhase.reward;
-      });
-    });
-  }
-
-  void _showParentPanel() {
-    setState(() {
-      _phase = LessonPhase.parent;
-    });
   }
 
   Future<void> _recordLessonCompletion() async {
@@ -5642,6 +5617,18 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     final isFlashcardPhase = _phase == LessonPhase.inspectObject;
     final showFullHeader = !isFlashcardPhase && !_isResultFocusPhase;
 
+    if (_usesTemplateLesson && _phase == LessonPhase.opening) {
+      return _TemplateObserveScreen(
+        lesson: lesson,
+        onBack: _exitLesson,
+        onContinue: () {
+          setState(() {
+            _phase = LessonPhase.introVideo;
+          });
+        },
+      );
+    }
+
     if (_isVideoPhase) {
       return Scaffold(
         backgroundColor: Colors.black,
@@ -5654,6 +5641,18 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
               child: SafeArea(child: _LessonExitButton(onPressed: _exitLesson)),
             ),
           ],
+        ),
+      );
+    }
+
+    if (_phase == LessonPhase.parent) {
+      return Scaffold(
+        body: _LessonRewardCelebration(
+          lesson: lesson,
+          onContinue: _exitLesson,
+          onHome: _exitLesson,
+          onReplay: _restartLesson,
+          onClose: _exitLesson,
         ),
       );
     }
@@ -5676,7 +5675,6 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                 if (showFullHeader) ...[
                   _GameHeader(
                     lesson: lesson,
-                    hasReward: _hasReward,
                     isParentReadingMode: _parentReadingMode,
                     onToggleReadingMode: _toggleReadingMode,
                     onRestart: _restartLesson,
@@ -5690,8 +5688,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                     children: [
                       if (!isFlashcardPhase)
                         Positioned.fill(child: _buildStage(lesson)),
-                      if (_phase == LessonPhase.correct)
-                        _CorrectCelebrationOverlay(onTap: _showReward),
+
                       if (_phase == LessonPhase.wrong)
                         _WrongFeedbackOverlay(
                           title: lesson.wrongTitle,
@@ -5712,15 +5709,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                           top: 0,
                           child: _LessonExitButton(onPressed: _exitLesson),
                         ),
-                      if (_phase == LessonPhase.rewardBurst)
-                        const _RewardBurstOverlay(),
-                      if (_phase == LessonPhase.reward)
-                        _RewardPanel(
-                          title: lesson.rewardTitle,
-                          onContinue: _showParentPanel,
-                        ),
-                      if (_phase == LessonPhase.parent)
-                        _ParentNotesPanel(notes: lesson.parentNotes),
+
                       if (_isResultFocusPhase)
                         _CompactLessonControls(
                           onRestart: _restartLesson,
@@ -5762,10 +5751,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
         );
       case LessonPhase.opening:
       case LessonPhase.inspectObject:
-      case LessonPhase.correct:
       case LessonPhase.wrong:
-      case LessonPhase.rewardBurst:
-      case LessonPhase.reward:
       case LessonPhase.parent:
         return _SceneStage(
           lesson: lesson,
@@ -5776,6 +5762,743 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 }
 
+class _TemplateObserveItem {
+  const _TemplateObserveItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.alignment,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final Alignment alignment;
+}
+
+class _TemplateObserveScreen extends StatefulWidget {
+  const _TemplateObserveScreen({
+    required this.lesson,
+    required this.onBack,
+    required this.onContinue,
+  });
+
+  final SafetyLesson lesson;
+  final VoidCallback onBack;
+  final VoidCallback onContinue;
+
+  @override
+  State<_TemplateObserveScreen> createState() => _TemplateObserveScreenState();
+}
+
+class _TemplateObserveScreenState extends State<_TemplateObserveScreen> {
+  final Set<String> _foundIds = <String>{};
+  bool _showHint = false;
+
+  late final List<_TemplateObserveItem> _items = _templateObserveItemsFor(
+    widget.lesson,
+  );
+
+  bool get _canContinue => _foundIds.length == _items.length;
+
+  void _markFound(_TemplateObserveItem item) {
+    setState(() {
+      _foundIds.add(item.id);
+      _showHint = false;
+    });
+  }
+
+  void _showNextHint() {
+    setState(() {
+      _showHint = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lesson = widget.lesson;
+    final foundCount = _foundIds.length;
+    final remainingCount = (_items.length - foundCount).clamp(0, _items.length);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F4EA),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 380;
+            final horizontalPadding = compact ? 18.0 : 24.0;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _TemplateObserveHeader(
+                  title: lesson.title,
+                  onBack: widget.onBack,
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    10,
+                    horizontalPadding,
+                    0,
+                  ),
+                  child: _TemplatePromptPill(
+                    text: _observePromptFor(lesson),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      16,
+                      horizontalPadding,
+                      10,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _TemplateObserveScene(
+                            lesson: lesson,
+                            items: _items,
+                            foundIds: _foundIds,
+                            showHint: _showHint,
+                            onFound: _markFound,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _TemplateFoundItems(
+                          items: _items,
+                          foundIds: _foundIds,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          remainingCount == 0
+                              ? 'Con đã tìm đủ rồi.'
+                              : 'Còn $remainingCount điều nữa',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: GameColors.muted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _TemplateObserveActions(
+                  canContinue: _canContinue,
+                  onContinue: widget.onContinue,
+                  onHint: _showNextHint,
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateObserveHeader extends StatelessWidget {
+  const _TemplateObserveHeader({required this.title, required this.onBack});
+
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0EEE6),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1425324B),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _TemplateCircleButton(
+            icon: Icons.arrow_back_rounded,
+            label: 'Quay lại',
+            onPressed: onBack,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: GameColors.ink,
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE4E3DB),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              '1/5',
+              style: TextStyle(
+                color: GameColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _TemplateCircleButton(
+            icon: Icons.volume_up_rounded,
+            label: 'Nghe lại',
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateCircleButton extends StatelessWidget {
+  const _TemplateCircleButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: SmartStepsPressEffect(
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 24),
+          color: GameColors.muted,
+          style: IconButton.styleFrom(
+            fixedSize: const Size(40, 40),
+            backgroundColor: Colors.white.withValues(alpha: 0.72),
+            padding: EdgeInsets.zero,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplatePromptPill extends StatelessWidget {
+  const _TemplatePromptPill({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE4E3DB)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1225324B),
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.play_circle_fill_rounded, color: GameColors.banana),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: GameColors.ink,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                height: 1.18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateObserveScene extends StatelessWidget {
+  const _TemplateObserveScene({
+    required this.lesson,
+    required this.items,
+    required this.foundIds,
+    required this.showHint,
+    required this.onFound,
+  });
+
+  final SafetyLesson lesson;
+  final List<_TemplateObserveItem> items;
+  final Set<String> foundIds;
+  final bool showHint;
+  final ValueChanged<_TemplateObserveItem> onFound;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = _templateSceneBackgroundFor(lesson);
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 260),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0EEE6),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE4E3DB), width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A735C00),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(background, fit: BoxFit.cover, alignment: Alignment.center),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.08),
+                  const Color(0xFF30240A).withValues(alpha: 0.18),
+                ],
+              ),
+            ),
+          ),
+          for (final item in items)
+            Align(
+              alignment: item.alignment,
+              child: _TemplateHotspot(
+                item: item,
+                isFound: foundIds.contains(item.id),
+                isHinted: showHint && !foundIds.contains(item.id),
+                onTap: () => onFound(item),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateHotspot extends StatefulWidget {
+  const _TemplateHotspot({
+    required this.item,
+    required this.isFound,
+    required this.isHinted,
+    required this.onTap,
+  });
+
+  final _TemplateObserveItem item;
+  final bool isFound;
+  final bool isHinted;
+  final VoidCallback onTap;
+
+  @override
+  State<_TemplateHotspot> createState() => _TemplateHotspotState();
+}
+
+class _TemplateHotspotState extends State<_TemplateHotspot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final found = widget.isFound;
+    final color = found ? GameColors.safe : GameColors.banana;
+
+    return Semantics(
+      button: true,
+      label: widget.item.label,
+      child: SmartStepsPressEffect(
+        enabled: !found,
+        child: GestureDetector(
+          onTap: found ? null : widget.onTap,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final pulse = 1 + math.sin(_controller.value * math.pi * 2) * 0.05;
+              return Transform.scale(
+                scale: found ? 1 : pulse,
+                child: child,
+              );
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: widget.isHinted ? 68 : 58,
+                  height: widget.isHinted ? 68 : 58,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withValues(alpha: found ? 0.24 : 0.28),
+                    border: Border.all(
+                      color: found ? GameColors.safe : Colors.white,
+                      width: found ? 4 : 3,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: widget.isHinted ? 0.38 : 0.20),
+                        blurRadius: widget.isHinted ? 22 : 14,
+                        spreadRadius: widget.isHinted ? 5 : 1,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    found ? Icons.check_circle_rounded : widget.item.icon,
+                    color: found ? GameColors.safe : GameColors.ink,
+                    size: found ? 34 : 28,
+                  ),
+                ),
+                if (found) ...[
+                  const SizedBox(height: 7),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: GameColors.safe,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x1F25324B),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      widget.item.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateFoundItems extends StatelessWidget {
+  const _TemplateFoundItems({required this.items, required this.foundIds});
+
+  final List<_TemplateObserveItem> items;
+  final Set<String> foundIds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: 'Đã tìm thấy: ',
+            children: [
+              TextSpan(
+                text: '${foundIds.length}/${items.length}',
+                style: const TextStyle(color: GameColors.safe),
+              ),
+            ],
+          ),
+          style: const TextStyle(
+            color: GameColors.muted,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final item in items)
+              _TemplateFoundChip(
+                label: item.label,
+                icon: item.icon,
+                isFound: foundIds.contains(item.id),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TemplateFoundChip extends StatelessWidget {
+  const _TemplateFoundChip({
+    required this.label,
+    required this.icon,
+    required this.isFound,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isFound;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isFound ? const Color(0xFFE5FFE3) : const Color(0xFFE4E3DB),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isFound ? GameColors.safe.withValues(alpha: 0.28) : const Color(0xFFD0C6AE),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isFound ? Icons.check_rounded : icon,
+            color: isFound ? GameColors.safe : GameColors.muted,
+            size: 18,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: isFound ? const Color(0xFF005313) : GameColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateObserveActions extends StatelessWidget {
+  const _TemplateObserveActions({
+    required this.canContinue,
+    required this.onContinue,
+    required this.onHint,
+  });
+
+  final bool canContinue;
+  final VoidCallback onContinue;
+  final VoidCallback onHint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0EEE6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1A735C00),
+            blurRadius: 20,
+            offset: Offset(0, -6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SmartStepsPressEffect(
+            enabled: canContinue,
+            child: FilledButton.icon(
+              onPressed: canContinue ? onContinue : null,
+              iconAlignment: IconAlignment.end,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 24),
+              label: const Text('Tiếp tục'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                backgroundColor: GameColors.banana,
+                disabledBackgroundColor: const Color(0xFFE4E3DB),
+                foregroundColor: GameColors.ink,
+                disabledForegroundColor: GameColors.muted.withValues(alpha: 0.55),
+                elevation: 0,
+                textStyle: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 9),
+          SmartStepsPressEffect(
+            child: OutlinedButton.icon(
+              onPressed: onHint,
+              icon: const Icon(Icons.lightbulb_rounded, size: 20),
+              label: const Text('Gợi ý'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(42),
+                foregroundColor: GameColors.ink,
+                side: BorderSide(color: GameColors.banana.withValues(alpha: 0.45), width: 2),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<_TemplateObserveItem> _templateObserveItemsFor(SafetyLesson lesson) {
+  final text = '${lesson.title} ${lesson.mission} ${lesson.topic}'.toLowerCase();
+
+  if (text.contains('người lạ')) {
+    return const [
+      _TemplateObserveItem(
+        id: 'stranger',
+        label: 'Người lạ',
+        icon: Icons.person_search_rounded,
+        alignment: Alignment(-0.48, -0.24),
+      ),
+      _TemplateObserveItem(
+        id: 'safe-adult',
+        label: 'Cô giáo',
+        icon: Icons.school_rounded,
+        alignment: Alignment(0.52, -0.06),
+      ),
+      _TemplateObserveItem(
+        id: 'gate',
+        label: 'Cổng trường',
+        icon: Icons.location_on_rounded,
+        alignment: Alignment(-0.04, 0.50),
+      ),
+    ];
+  }
+
+  if (text.contains('bạn') || text.contains('thách')) {
+    return const [
+      _TemplateObserveItem(
+        id: 'friends',
+        label: 'Nhóm bạn',
+        icon: Icons.groups_rounded,
+        alignment: Alignment(-0.52, -0.12),
+      ),
+      _TemplateObserveItem(
+        id: 'risk',
+        label: 'Việc nguy hiểm',
+        icon: Icons.warning_rounded,
+        alignment: Alignment(0.48, 0.04),
+      ),
+      _TemplateObserveItem(
+        id: 'adult',
+        label: 'Người lớn',
+        icon: Icons.record_voice_over_rounded,
+        alignment: Alignment(-0.06, 0.56),
+      ),
+    ];
+  }
+
+  if (text.contains('ví') || text.contains('rơi')) {
+    return const [
+      _TemplateObserveItem(
+        id: 'item',
+        label: 'Đồ bị rơi',
+        icon: Icons.wallet_rounded,
+        alignment: Alignment(-0.34, 0.38),
+      ),
+      _TemplateObserveItem(
+        id: 'owner',
+        label: 'Người đánh rơi',
+        icon: Icons.person_rounded,
+        alignment: Alignment(0.46, -0.16),
+      ),
+      _TemplateObserveItem(
+        id: 'staff',
+        label: 'Nhân viên',
+        icon: Icons.support_agent_rounded,
+        alignment: Alignment(-0.58, -0.22),
+      ),
+    ];
+  }
+
+  return const [
+    _TemplateObserveItem(
+      id: 'danger',
+      label: 'Điều nguy hiểm',
+      icon: Icons.warning_rounded,
+      alignment: Alignment(-0.48, -0.16),
+    ),
+    _TemplateObserveItem(
+      id: 'safe-adult',
+      label: 'Người giúp con',
+      icon: Icons.record_voice_over_rounded,
+      alignment: Alignment(0.50, -0.04),
+    ),
+    _TemplateObserveItem(
+      id: 'place',
+      label: 'Nơi đang đứng',
+      icon: Icons.place_rounded,
+      alignment: Alignment(-0.02, 0.52),
+    ),
+  ];
+}
+
+String _observePromptFor(SafetyLesson lesson) {
+  final count = _templateObserveItemsFor(lesson).length;
+  return 'Con tìm $count điều cần chú ý nhé!';
+}
+
+String _templateSceneBackgroundFor(SafetyLesson lesson) {
+  return switch (lesson.islandId) {
+    2 => LessonAssets.island2Background,
+    3 => LessonAssets.island3Background,
+    _ => LessonAssets.island1Background,
+  };
+}
 class _LessonExitButton extends StatelessWidget {
   const _LessonExitButton({required this.onPressed});
 
@@ -5813,7 +6536,6 @@ class _LessonExitButton extends StatelessWidget {
 class _GameHeader extends StatelessWidget {
   const _GameHeader({
     required this.lesson,
-    required this.hasReward,
     required this.isParentReadingMode,
     required this.onToggleReadingMode,
     required this.onRestart,
@@ -5821,7 +6543,6 @@ class _GameHeader extends StatelessWidget {
   });
 
   final SafetyLesson lesson;
-  final bool hasReward;
   final bool isParentReadingMode;
   final VoidCallback onToggleReadingMode;
   final VoidCallback onRestart;
@@ -5891,7 +6612,7 @@ class _GameHeader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                _SafetyDots(isActive: hasReward),
+                _SafetyDots(isActive: false),
               ],
             ),
           ],
@@ -6360,10 +7081,7 @@ class _SceneStage extends StatelessWidget {
   bool get _isObjectActive => phase == LessonPhase.opening;
   bool get _isWrong => phase == LessonPhase.wrong;
   bool get _showMother {
-    return phase == LessonPhase.correct ||
-        phase == LessonPhase.rewardBurst ||
-        phase == LessonPhase.reward ||
-        phase == LessonPhase.parent;
+    return phase == LessonPhase.parent;
   }
 
   String get _characterAsset {
@@ -6371,10 +7089,7 @@ class _SceneStage extends StatelessWidget {
       case LessonPhase.wrong:
       case LessonPhase.wrongVideo:
         return LessonAssets.childChoking;
-      case LessonPhase.correct:
       case LessonPhase.correctVideo:
-      case LessonPhase.rewardBurst:
-      case LessonPhase.reward:
       case LessonPhase.parent:
         return LessonAssets.childHappy;
       case LessonPhase.introVideo:
@@ -7826,377 +8541,8 @@ class _CardTapSelectHintState extends State<_CardTapSelectHint>
   }
 }
 
-class _CorrectCelebrationOverlay extends StatefulWidget {
-  const _CorrectCelebrationOverlay({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  State<_CorrectCelebrationOverlay> createState() =>
-      _CorrectCelebrationOverlayState();
-}
-
-class _CorrectCelebrationOverlayState extends State<_CorrectCelebrationOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  static const _confetti = <_ConfettiSpec>[
-    _ConfettiSpec(
-      alignment: Alignment(-0.92, -0.78),
-      color: GameColors.safe,
-      size: 15,
-      drift: Offset(18, 90),
-      delay: 0.00,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.66, -0.58),
-      color: GameColors.banana,
-      size: 11,
-      drift: Offset(-10, 76),
-      delay: 0.16,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.32, -0.86),
-      color: GameColors.coral,
-      size: 13,
-      drift: Offset(26, 108),
-      delay: 0.08,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.05, -0.70),
-      color: GameColors.sky,
-      size: 17,
-      drift: Offset(-18, 96),
-      delay: 0.22,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.42, -0.88),
-      color: GameColors.mint,
-      size: 12,
-      drift: Offset(18, 112),
-      delay: 0.04,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.74, -0.62),
-      color: GameColors.banana,
-      size: 16,
-      drift: Offset(-24, 84),
-      delay: 0.18,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.92, -0.82),
-      color: GameColors.safe,
-      size: 10,
-      drift: Offset(-14, 102),
-      delay: 0.11,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.80, 0.05),
-      color: GameColors.sky,
-      size: 12,
-      drift: Offset(16, 70),
-      delay: 0.28,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.48, 0.22),
-      color: GameColors.banana,
-      size: 18,
-      drift: Offset(-18, 86),
-      delay: 0.33,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.18, 0.16),
-      color: GameColors.coral,
-      size: 12,
-      drift: Offset(22, 78),
-      delay: 0.26,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.62, 0.04),
-      color: GameColors.safe,
-      size: 14,
-      drift: Offset(-20, 92),
-      delay: 0.38,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.86, 0.26),
-      color: GameColors.mint,
-      size: 11,
-      drift: Offset(-24, 72),
-      delay: 0.31,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.96, -0.28),
-      color: GameColors.coral,
-      size: 18,
-      drift: Offset(36, 118),
-      delay: 0.47,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.18, -0.46),
-      color: GameColors.banana,
-      size: 14,
-      drift: Offset(-34, 132),
-      delay: 0.52,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.34, -0.44),
-      color: GameColors.safe,
-      size: 20,
-      drift: Offset(28, 126),
-      delay: 0.57,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.96, -0.22),
-      color: GameColors.sky,
-      size: 15,
-      drift: Offset(-42, 116),
-      delay: 0.49,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.70, -0.94),
-      color: GameColors.mint,
-      size: 13,
-      drift: Offset(18, 146),
-      delay: 0.62,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.04, -0.96),
-      color: GameColors.coral,
-      size: 16,
-      drift: Offset(-22, 150),
-      delay: 0.67,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.58, -0.96),
-      color: GameColors.safe,
-      size: 12,
-      drift: Offset(20, 142),
-      delay: 0.71,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.98, 0.46),
-      color: GameColors.banana,
-      size: 17,
-      drift: Offset(54, 76),
-      delay: 0.78,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.98, 0.52),
-      color: GameColors.coral,
-      size: 14,
-      drift: Offset(-56, 78),
-      delay: 0.82,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(-0.28, 0.48),
-      color: GameColors.sky,
-      size: 15,
-      drift: Offset(-30, 96),
-      delay: 0.88,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.42, 0.42),
-      color: GameColors.mint,
-      size: 18,
-      drift: Offset(34, 92),
-      delay: 0.92,
-      isCircle: true,
-    ),
-    _ConfettiSpec(
-      alignment: Alignment(0.00, -0.18),
-      color: GameColors.banana,
-      size: 22,
-      drift: Offset(0, 118),
-      delay: 0.96,
-    ),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1700),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: Semantics(
-        button: true,
-        label: 'Chạm để nhận sao',
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final progress = _controller.value;
-
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 520;
-                  final badgeAlignment = compact
-                      ? const Alignment(-0.34, 0.10)
-                      : const Alignment(-0.18, 0.08);
-
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _CelebrationRaysPainter(progress),
-                        ),
-                      ),
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _SideFireworksPainter(progress),
-                        ),
-                      ),
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _CenterBurstPainter(progress),
-                        ),
-                      ),
-                      for (final spec in _confetti)
-                        _CelebrationConfettiPiece(
-                          spec: spec,
-                          progress: progress,
-                        ),
-                      Align(
-                        alignment: badgeAlignment,
-                        child: _CelebrationBadge(
-                          progress: progress,
-                          compact: compact,
-                        ),
-                      ),
-                      Align(
-                        alignment: compact
-                            ? const Alignment(0.78, 0.58)
-                            : const Alignment(0.86, 0.42),
-                        child: _TapActionPill(
-                          key: const ValueKey('celebration-tap-hint'),
-                          label: 'Chạm để nhận sao',
-                          icon: Icons.touch_app_rounded,
-                          color: GameColors.safe,
-                          progress: progress,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CelebrationBadge extends StatelessWidget {
-  const _CelebrationBadge({required this.progress, required this.compact});
-
-  final double progress;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final pulse = 1 + math.sin(progress * math.pi * 2) * 0.075;
-    final float = math.sin(progress * math.pi * 2) * -11;
-
-    return Transform.translate(
-      offset: Offset(0, float),
-      child: Transform.scale(
-        scale: pulse,
-        child: Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: compact ? 250 : 326,
-              height: compact ? 166 : 214,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    GameColors.banana.withValues(alpha: 0.72),
-                    GameColors.safe.withValues(alpha: 0.28),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            Transform.rotate(
-              angle: -0.10 + math.sin(progress * math.pi * 2) * 0.055,
-              child: Image.asset(
-                LessonAssets.rewardStar,
-                width: compact ? 144 : 196,
-                fit: BoxFit.contain,
-              ),
-            ),
-            Positioned(
-              bottom: compact ? -6 : -8,
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 16 : 20,
-                  vertical: compact ? 9 : 11,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.94),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: GameColors.banana.withValues(alpha: 0.92),
-                    width: 5,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x4025324B),
-                      blurRadius: 26,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  'Tuyệt vời!',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: GameColors.ink,
-                    fontSize: compact ? 20 : 26,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _TapActionPill extends StatelessWidget {
   const _TapActionPill({
-    super.key,
     required this.label,
     required this.icon,
     required this.color,
@@ -8235,358 +8581,6 @@ class _TapActionPill extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _CelebrationConfettiPiece extends StatelessWidget {
-  const _CelebrationConfettiPiece({required this.spec, required this.progress});
-
-  final _ConfettiSpec spec;
-  final double progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final localProgress = ((progress + spec.delay) % 1.0);
-    final eased = Curves.easeOutCubic.transform(localProgress);
-    final opacity = localProgress < 0.12
-        ? localProgress / 0.12
-        : localProgress > 0.90
-        ? (1 - localProgress) / 0.10
-        : 1.0;
-    final rotation = (localProgress * math.pi * 4.4) + spec.delay * 10;
-    final size = spec.size * 1.18;
-
-    return Align(
-      alignment: spec.alignment,
-      child: Transform.translate(
-        offset: Offset(
-          spec.drift.dx * eased * 1.22,
-          spec.drift.dy * eased * 1.18,
-        ),
-        child: Transform.rotate(
-          angle: rotation,
-          child: Opacity(
-            opacity: opacity.clamp(0.0, 1.0).toDouble(),
-            child: Container(
-              width: spec.isCircle ? size : size * 0.72,
-              height: spec.isCircle ? size : size,
-              decoration: BoxDecoration(
-                color: spec.color,
-                shape: spec.isCircle ? BoxShape.circle : BoxShape.rectangle,
-                borderRadius: spec.isCircle ? null : BorderRadius.circular(4),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.66),
-                  width: 1.8,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ConfettiSpec {
-  const _ConfettiSpec({
-    required this.alignment,
-    required this.color,
-    required this.size,
-    required this.drift,
-    required this.delay,
-    this.isCircle = false,
-  });
-
-  final Alignment alignment;
-  final Color color;
-  final double size;
-  final Offset drift;
-  final double delay;
-  final bool isCircle;
-}
-
-class _SideFireworksPainter extends CustomPainter {
-  const _SideFireworksPainter(this.progress);
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: true,
-      delay: 0.00,
-      color: GameColors.banana,
-      endY: 0.28,
-    );
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: false,
-      delay: 0.16,
-      color: GameColors.safe,
-      endY: 0.24,
-    );
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: true,
-      delay: 0.38,
-      color: GameColors.coral,
-      endY: 0.44,
-    );
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: false,
-      delay: 0.54,
-      color: GameColors.sky,
-      endY: 0.42,
-    );
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: true,
-      delay: 0.68,
-      color: GameColors.mint,
-      endY: 0.18,
-    );
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: false,
-      delay: 0.76,
-      color: GameColors.coral,
-      endY: 0.20,
-    );
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: true,
-      delay: 0.86,
-      color: GameColors.safe,
-      endY: 0.56,
-    );
-    _paintFirework(
-      canvas,
-      size,
-      fromLeft: false,
-      delay: 0.94,
-      color: GameColors.banana,
-      endY: 0.58,
-    );
-  }
-
-  void _paintFirework(
-    Canvas canvas,
-    Size size, {
-    required bool fromLeft,
-    required double delay,
-    required Color color,
-    required double endY,
-  }) {
-    final local = (progress + delay) % 1.0;
-    final launchProgress = (local / 0.34).clamp(0.0, 1.0).toDouble();
-    final burstProgress = ((local - 0.30) / 0.70).clamp(0.0, 1.0).toDouble();
-    final start = Offset(
-      fromLeft ? -18 : size.width + 18,
-      size.height * (fromLeft ? 0.76 : 0.72),
-    );
-    final end = Offset(
-      size.width * (fromLeft ? 0.30 : 0.70),
-      size.height * endY,
-    );
-    final rocketPosition = Offset.lerp(
-      start,
-      end,
-      Curves.easeOutCubic.transform(launchProgress),
-    )!;
-
-    if (local < 0.36) {
-      final trailPaint = Paint()
-        ..color = color.withValues(alpha: 0.48)
-        ..strokeWidth = 5
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(start, rocketPosition, trailPaint);
-      canvas.drawCircle(
-        rocketPosition,
-        7 + math.sin(local * math.pi * 9).abs() * 4,
-        Paint()..color = Colors.white.withValues(alpha: 0.86),
-      );
-      canvas.drawCircle(
-        rocketPosition,
-        16,
-        Paint()..color = color.withValues(alpha: 0.34),
-      );
-      return;
-    }
-
-    if (burstProgress <= 0) {
-      return;
-    }
-
-    final fade = 1 - Curves.easeInCubic.transform(burstProgress);
-    final radius = 24 + Curves.easeOutCubic.transform(burstProgress) * 104;
-    final linePaint = Paint()
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    final dotPaint = Paint()..style = PaintingStyle.fill;
-
-    for (var i = 0; i < 24; i++) {
-      final angle = (math.pi * 2 / 24) * i + delay * math.pi * 2;
-      final distance = radius * (0.70 + (i % 5) * 0.09);
-      final particle =
-          end + Offset(math.cos(angle), math.sin(angle)) * distance;
-      final accent = i.isEven ? color : GameColors.banana;
-      linePaint.color = accent.withValues(alpha: 0.44 * fade);
-      dotPaint.color = accent.withValues(alpha: 0.90 * fade);
-
-      canvas.drawLine(end, Offset.lerp(end, particle, 0.82)!, linePaint);
-      canvas.drawCircle(particle, 4.2 + (i % 4), dotPaint);
-    }
-
-    canvas.drawCircle(
-      end,
-      12 + burstProgress * 16,
-      Paint()..color = Colors.white.withValues(alpha: 0.70 * fade),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _SideFireworksPainter oldDelegate) {
-    return oldDelegate.progress != progress;
-  }
-}
-
-class _CenterBurstPainter extends CustomPainter {
-  const _CenterBurstPainter(this.progress);
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width * 0.47, size.height * 0.45);
-    final shortestSide = math.min(size.width, size.height);
-    final colors = <Color>[
-      GameColors.banana,
-      GameColors.safe,
-      GameColors.sky,
-      GameColors.coral,
-    ];
-
-    for (var ring = 0; ring < 3; ring++) {
-      final local = (progress + ring * 0.24) % 1.0;
-      final eased = Curves.easeOutCubic.transform(local);
-      final fade = 1 - Curves.easeInCubic.transform(local);
-      final radius = shortestSide * (0.12 + eased * (0.28 + ring * 0.035));
-      final stroke = Paint()
-        ..strokeWidth = 2.8 - ring * 0.35
-        ..strokeCap = StrokeCap.round;
-      final dot = Paint()..style = PaintingStyle.fill;
-
-      for (var i = 0; i < 28; i++) {
-        final angle =
-            (math.pi * 2 / 28) * i + progress * math.pi * (1.2 + ring * 0.25);
-        final outer =
-            center + Offset(math.cos(angle), math.sin(angle)) * radius;
-        final inner =
-            center + Offset(math.cos(angle), math.sin(angle)) * (radius * 0.54);
-        final accent = colors[(i + ring) % colors.length];
-        stroke.color = accent.withValues(alpha: 0.46 * fade);
-        dot.color = accent.withValues(alpha: 0.88 * fade);
-
-        canvas.drawLine(inner, outer, stroke);
-        canvas.drawCircle(outer, 2.8 + (i % 4) * 0.8, dot);
-      }
-
-      canvas.drawCircle(
-        center,
-        radius * 0.36,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.4
-          ..color = Colors.white.withValues(alpha: 0.30 * fade),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _CenterBurstPainter oldDelegate) {
-    return oldDelegate.progress != progress;
-  }
-}
-
-class _CelebrationRaysPainter extends CustomPainter {
-  const _CelebrationRaysPainter(this.progress);
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width * 0.48, size.height * 0.53);
-    final maxRadius = math.sqrt(
-      size.width * size.width + size.height * size.height,
-    );
-    final rayPaint = Paint()..style = PaintingStyle.fill;
-
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          maxRadius * 0.48,
-          [
-            GameColors.banana.withValues(alpha: 0.24),
-            GameColors.safe.withValues(alpha: 0.10),
-            Colors.transparent,
-          ],
-          [0, 0.56, 1],
-        ),
-    );
-
-    for (var i = 0; i < 24; i++) {
-      final angle = (math.pi * 2 / 24) * i + progress * math.pi * 0.42;
-      final spread = math.pi / 30;
-      final opacity = i.isEven ? 0.20 : 0.12;
-      rayPaint.color = (i.isEven ? GameColors.banana : GameColors.mint)
-          .withValues(alpha: opacity);
-
-      final path = Path()
-        ..moveTo(center.dx, center.dy)
-        ..lineTo(
-          center.dx + math.cos(angle - spread) * maxRadius,
-          center.dy + math.sin(angle - spread) * maxRadius,
-        )
-        ..lineTo(
-          center.dx + math.cos(angle + spread) * maxRadius,
-          center.dy + math.sin(angle + spread) * maxRadius,
-        )
-        ..close();
-      canvas.drawPath(path, rayPaint);
-    }
-
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 7
-      ..color = Colors.white.withValues(alpha: 0.34);
-    final ringPulse = 0.48 + progress * 0.56;
-    canvas.drawCircle(center, maxRadius * 0.16 * ringPulse, ringPaint);
-    canvas.drawCircle(
-      center,
-      maxRadius * 0.25 * ((progress + 0.42) % 1),
-      ringPaint..color = GameColors.banana.withValues(alpha: 0.26),
-    );
-    canvas.drawCircle(
-      center,
-      maxRadius * 0.32 * ((progress + 0.72) % 1),
-      ringPaint..color = GameColors.safe.withValues(alpha: 0.18),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _CelebrationRaysPainter oldDelegate) {
-    return oldDelegate.progress != progress;
   }
 }
 
@@ -9223,216 +9217,585 @@ class _WrongAlertIconState extends State<_WrongAlertIcon>
   }
 }
 
-class _RewardBurstOverlay extends StatefulWidget {
-  const _RewardBurstOverlay();
-
-  @override
-  State<_RewardBurstOverlay> createState() => _RewardBurstOverlayState();
-}
-
-class _RewardBurstOverlayState extends State<_RewardBurstOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _rewardBurstDuration,
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            final scale =
-                0.12 + Curves.easeOutBack.transform(_controller.value) * 2.35;
-            final opacity = _controller.value < 0.74
-                ? 1.0
-                : (1 - ((_controller.value - 0.74) / 0.26))
-                      .clamp(0.0, 1.0)
-                      .toDouble();
-            final rotation = -0.34 + _controller.value * 0.82;
-
-            return Container(
-              color: GameColors.cream.withValues(alpha: 0.18),
-              alignment: Alignment.center,
-              child: Opacity(
-                opacity: opacity,
-                child: Transform.rotate(
-                  angle: rotation,
-                  child: Transform.scale(scale: scale, child: child),
-                ),
-              ),
-            );
-          },
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      GameColors.banana.withValues(alpha: 0.58),
-                      GameColors.safe.withValues(alpha: 0.18),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-              Image.asset(LessonAssets.rewardStar, width: 176),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RewardPanel extends StatelessWidget {
-  const _RewardPanel({required this.title, required this.onContinue});
-
-  final String title;
-  final VoidCallback onContinue;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: 14,
-      right: 14,
-      bottom: 14,
-      child: _GlassPanel(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Image.asset(LessonAssets.rewardStar, width: 86),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _DockLabel('Phần thưởng'),
-                  const SizedBox(height: 5),
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  _PillButton(
-                    label: 'Xem cùng ba mẹ',
-                    icon: Icons.groups_rounded,
-                    color: GameColors.safe,
-                    onPressed: onContinue,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ParentNotesPanel extends StatelessWidget {
-  const _ParentNotesPanel({required this.notes});
-
-  final ParentNotes notes;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: 14,
-      right: 14,
-      bottom: 14,
-      child: _GlassPanel(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const _DockLabel('Góc phụ huynh'),
-            const SizedBox(height: 10),
-            _ParentNoteRow(
-              icon: Icons.psychology_alt_rounded,
-              title: 'Kỹ năng',
-              body: notes.skill,
-            ),
-            const SizedBox(height: 9),
-            _ParentNoteRow(
-              icon: Icons.location_searching_rounded,
-              title: 'Luyện tập',
-              body: notes.practice,
-            ),
-            const SizedBox(height: 9),
-            _ParentNoteRow(
-              icon: Icons.health_and_safety_rounded,
-              title: 'Cần chú ý',
-              body: notes.risk,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ParentNoteRow extends StatelessWidget {
-  const _ParentNoteRow({
-    required this.icon,
-    required this.title,
-    required this.body,
+class _LessonRewardCelebration extends StatelessWidget {
+  const _LessonRewardCelebration({
+    required this.lesson,
+    required this.onContinue,
+    required this.onHome,
+    required this.onReplay,
+    required this.onClose,
   });
 
-  final IconData icon;
-  final String title;
-  final String body;
+  final SafetyLesson lesson;
+  final VoidCallback onContinue;
+  final VoidCallback onHome;
+  final VoidCallback onReplay;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: GameColors.mint.withValues(alpha: 0.74),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(icon, color: GameColors.ink, size: 20),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: Theme.of(context).textTheme.bodyMedium,
-              children: [
-                TextSpan(
-                  text: '$title: ',
-                  style: const TextStyle(
-                    color: GameColors.ink,
-                    fontWeight: FontWeight.w900,
-                  ),
+    return Semantics(
+      liveRegion: true,
+      label: 'Hoàn thành màn chơi. Con đã vượt qua thử thách rất tốt.',
+      child: DecoratedBox(
+        decoration: const BoxDecoration(color: GameColors.cream),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                LessonAssets.rewardBackground,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.20),
                 ),
-                TextSpan(text: body),
+              ),
+            ),
+            const Positioned.fill(child: _RewardFloatingDecorations()),
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 520;
+                  final horizontalPadding = compact ? 20.0 : 32.0;
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      compact ? 28 : 36,
+                      horizontalPadding,
+                      compact ? 18 : 28,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - (compact ? 46 : 64),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _RewardHeader(lesson: lesson, compact: compact),
+                          SizedBox(height: compact ? 20 : 26),
+                          _RewardCard(lesson: lesson, compact: compact),
+                          SizedBox(height: compact ? 16 : 22),
+                          _RewardSkillSummary(lesson: lesson),
+                          SizedBox(height: compact ? 24 : 34),
+                          _RewardActions(
+                            onContinue: onContinue,
+                            onHome: onHome,
+                            onReplay: onReplay,
+                            onClose: onClose,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RewardHeader extends StatelessWidget {
+  const _RewardHeader({required this.lesson, required this.compact});
+
+  final SafetyLesson lesson;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.88, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value.clamp(0.0, 1.0),
+          child: Transform.scale(scale: value, child: child),
+        );
+      },
+      child: Column(
+        children: [
+          Text(
+            'Hoàn thành màn chơi!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: GameColors.banana,
+              fontSize: compact ? 34 : 46,
+              fontWeight: FontWeight.w900,
+              height: 1.05,
+              shadows: const [
+                Shadow(color: Colors.white, blurRadius: 12),
+                Shadow(color: Color(0x3325324B), offset: Offset(0, 3)),
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Con đã vượt qua thử thách rất tốt',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: GameColors.ink,
+              fontSize: compact ? 18 : 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            lesson.title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: GameColors.muted,
+              fontSize: compact ? 14 : 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardCard extends StatelessWidget {
+  const _RewardCard({required this.lesson, required this.compact});
+
+  final SafetyLesson lesson;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassPanel(
+      padding: EdgeInsets.all(compact ? 16 : 22),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const _RewardLine(
+            icon: Icons.star_rounded,
+            label: '+3 Safety Stars',
+            color: GameColors.banana,
+            background: Color(0x4DFFD54F),
+          ),
+          const SizedBox(height: 12),
+          const _RewardLine(
+            icon: Icons.monetization_on_rounded,
+            label: '+20 Xu',
+            color: Color(0xFF8B5000),
+            background: Color(0x3DFFD1A7),
+          ),
+          const SizedBox(height: 12),
+          _RewardBadge(skillName: lesson.topic),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardLine extends StatelessWidget {
+  const _RewardLine({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.background,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 34),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardBadge extends StatelessWidget {
+  const _RewardBadge({required this.skillName});
+
+  final String skillName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: GameColors.mint.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: GameColors.safe.withValues(alpha: 0.34),
+          width: 2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(26),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1F25324B),
+                  blurRadius: 14,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.workspace_premium_rounded,
+              color: GameColors.safe,
+              size: 34,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Huy hiệu mới:',
+                  style: TextStyle(
+                    color: GameColors.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.7,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  skillName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: GameColors.safe,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardSkillSummary extends StatelessWidget {
+  const _RewardSkillSummary({required this.lesson});
+
+  final SafetyLesson lesson;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassPanel(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: [
+          const Text(
+            'Kỹ năng của con',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: GameColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _RewardSkillTile(
+                  icon: Icons.visibility_rounded,
+                  label: lesson.topic,
+                  color: GameColors.safe,
+                  background: GameColors.mint.withValues(alpha: 0.35),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _RewardSkillTile(
+                  icon: Icons.check_circle_rounded,
+                  label: 'Chọn đúng',
+                  color: const Color(0xFF3C7DD9),
+                  background: const Color(0xFFEAF3FF),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _RewardSkillTile(
+                  icon: Icons.bolt_rounded,
+                  label: 'Phản xạ an toàn',
+                  color: const Color(0xFF8B5000),
+                  background: const Color(0xFFFFF0D9),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardSkillTile extends StatelessWidget {
+  const _RewardSkillTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.background,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 112),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(21),
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              3,
+              (_) => Icon(Icons.star_rounded, color: color, size: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardActions extends StatelessWidget {
+  const _RewardActions({
+    required this.onContinue,
+    required this.onHome,
+    required this.onReplay,
+    required this.onClose,
+  });
+
+  final VoidCallback onContinue;
+  final VoidCallback onHome;
+  final VoidCallback onReplay;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SmartStepsPressEffect(
+          child: FilledButton.icon(
+            key: const ValueKey('lesson-reward-continue-button'),
+            onPressed: onContinue,
+            iconAlignment: IconAlignment.end,
+            icon: const Icon(Icons.arrow_forward_rounded, size: 30),
+            label: const Text('Tiếp tục'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(62),
+              backgroundColor: GameColors.banana,
+              foregroundColor: GameColors.ink,
+              elevation: 0,
+              textStyle: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+                side: const BorderSide(color: Colors.white, width: 4),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _RewardActionButton(
+                label: 'Về nhà',
+                icon: Icons.home_rounded,
+                onPressed: onHome,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 3,
+              child: _RewardActionButton(
+                label: 'Chơi lại',
+                icon: Icons.refresh_rounded,
+                onPressed: onReplay,
+                showLabel: true,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _RewardActionButton(
+                label: 'Đóng',
+                icon: Icons.close_rounded,
+                onPressed: onClose,
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+}
+
+class _RewardActionButton extends StatelessWidget {
+  const _RewardActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.showLabel = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: SmartStepsPressEffect(
+        child: FilledButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 26),
+          label: showLabel
+              ? Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)
+              : const SizedBox.shrink(),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 54),
+            padding: EdgeInsets.symmetric(horizontal: showLabel ? 16 : 0),
+            backgroundColor: Colors.white.withValues(alpha: 0.92),
+            foregroundColor: GameColors.ink,
+            elevation: 0,
+            textStyle: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+              side: BorderSide(
+                color: GameColors.banana.withValues(alpha: 0.50),
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RewardFloatingDecorations extends StatelessWidget {
+  const _RewardFloatingDecorations();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        children: const [
+          Positioned(
+            left: 34,
+            top: 42,
+            child: Icon(
+              Icons.grade_rounded,
+              color: Color(0x99FFD54F),
+              size: 42,
+            ),
+          ),
+          Positioned(
+            right: 24,
+            top: 138,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0x668B5000),
+              size: 44,
+            ),
+          ),
+          Positioned(
+            right: 58,
+            bottom: 128,
+            child: Icon(
+              Icons.favorite_rounded,
+              color: Color(0x6678DC77),
+              size: 34,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -10020,3 +10383,5 @@ class _ParentalGateDialogState extends State<_ParentalGateDialog> {
     );
   }
 }
+
+
