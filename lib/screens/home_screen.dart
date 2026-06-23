@@ -63,6 +63,9 @@ class _SmartStepsBootstrapApp extends StatefulWidget {
 
 class _SmartStepsBootstrapAppState extends State<_SmartStepsBootstrapApp> {
   Future<void>? _preloadFuture;
+  double _loadingProgress = 0.0;
+  bool _isPreloadingDone = false;
+  bool _showSplash = true;
 
   @override
   void didChangeDependencies() {
@@ -77,6 +80,18 @@ class _SmartStepsBootstrapAppState extends State<_SmartStepsBootstrapApp> {
         .where(_isPreloadableImageAsset)
         .toList(growable: false);
 
+    if (imageAssets.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _loadingProgress = 1.0;
+          _isPreloadingDone = true;
+        });
+      }
+      return;
+    }
+
+    final startTime = DateTime.now();
+    int loaded = 0;
     for (final asset in imageAssets) {
       if (!mounted) {
         return;
@@ -88,6 +103,30 @@ class _SmartStepsBootstrapAppState extends State<_SmartStepsBootstrapApp> {
         debugPrint('SmartSteps image preload failed for $asset: $error');
         debugPrintStack(stackTrace: stackTrace);
       }
+      loaded++;
+      
+      // Delay slightly between each asset to spacing out the loading CPU spike
+      // and ensure a smooth visual experience of about 2 - 2.5 seconds
+      await Future.delayed(const Duration(milliseconds: 55));
+      
+      if (mounted) {
+        setState(() {
+          _loadingProgress = loaded / imageAssets.length;
+        });
+      }
+    }
+
+    // Ensure it shows for at least 2.5s
+    final elapsed = DateTime.now().difference(startTime);
+    const minDuration = Duration(milliseconds: 2500);
+    if (elapsed < minDuration) {
+      await Future.delayed(minDuration - elapsed);
+    }
+
+    if (mounted) {
+      setState(() {
+        _isPreloadingDone = true;
+      });
     }
   }
 
@@ -102,37 +141,417 @@ class _SmartStepsBootstrapAppState extends State<_SmartStepsBootstrapApp> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<void>(
-      future: _preloadFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done) {
-          return SmartStepsApp(enableAudio: true);
-        }
+    if (!_showSplash) {
+      return SmartStepsApp(enableAudio: true);
+    }
 
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'SmartSteps',
-          theme: DuoTheme.light,
-          home: const _SmartStepsBootSplash(),
-        );
-      },
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'SmartSteps',
+      theme: DuoTheme.light,
+      home: _SmartStepsBootSplash(
+        progress: _loadingProgress,
+        isDone: _isPreloadingDone,
+        onFinished: () {
+          if (mounted) {
+            setState(() {
+              _showSplash = false;
+            });
+          }
+        },
+      ),
     );
   }
 }
 
-class _SmartStepsBootSplash extends StatelessWidget {
-  const _SmartStepsBootSplash();
+class _SmartStepsBootSplash extends StatefulWidget {
+  const _SmartStepsBootSplash({
+    required this.progress,
+    required this.isDone,
+    required this.onFinished,
+  });
+
+  final double progress;
+  final bool isDone;
+  final VoidCallback onFinished;
+
+  @override
+  State<_SmartStepsBootSplash> createState() => _SmartStepsBootSplashState();
+}
+
+class _SmartStepsBootSplashState extends State<_SmartStepsBootSplash> {
+  late Timer _textTimer;
+  int _textIndex = 0;
+  bool _hasCalledFinished = false;
+
+  final List<String> _loadingTexts = [
+    'Đang nạp năng lượng tự lập cho bé...',
+    'Cùng thắt dây an toàn để chuẩn bị xuất phát nào...',
+    'Các bạn nhỏ ngoan ngoãn đang đợi bé đó...',
+    'Đang chuẩn bị trang phục siêu anh hùng nhí...',
+    'Dọn dẹp đồ chơi gọn gàng để sẵn sàng phiêu lưu nhé...',
+    'Bé hãy nhớ đi bộ trên vạch kẻ đường an toàn nhé...',
+    'Nhặt rác bỏ vào thùng để bảo vệ hành tinh xanh của chúng ta...',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _textTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
+      if (mounted) {
+        setState(() {
+          _textIndex = (_textIndex + 1) % _loadingTexts.length;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _textTimer.cancel();
+    super.dispose();
+  }
+
+  void _checkFinished(double currentVal) {
+    if (currentVal >= 0.99 && widget.isDone && !_hasCalledFinished) {
+      _hasCalledFinished = true;
+      // Small delay at 100% so child can see the superhero badge
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) {
+          widget.onFinished();
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFFFFF7D6),
-      body: Center(
-        child: SizedBox(
-          width: 42,
-          height: 42,
-          child: CircularProgressIndicator(strokeWidth: 4),
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFDF7), // Soft cream white background
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Center(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: 620,
+                    minHeight: constraints.maxHeight - 40,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Top Header
+                        Column(
+                          children: [
+                            const SizedBox(height: 20),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: DuoColors.primaryYellow.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(99),
+                                border: Border.all(
+                                  color: DuoColors.primaryYellow.withValues(alpha: 0.4),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: const Text(
+                                'HÀNH TRÌNH SIÊU ANH HÙNG NHÍ',
+                                style: TextStyle(
+                                  color: DuoColors.tactileShadow,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'SmartSteps',
+                              style: TextStyle(
+                                color: DuoColors.textPrimary,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Middle: Loading Road Path
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0.0, end: widget.progress),
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
+                          onEnd: () {
+                            _checkFinished(widget.progress);
+                          },
+                          builder: (context, val, child) {
+                            // Run the finished check if progress updates to 1.0 but animation hasn't ended
+                            if (val >= 0.99) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _checkFinished(val);
+                              });
+                            }
+                            
+                            return LayoutBuilder(
+                              builder: (context, roadConstraints) {
+                                final parentWidth = roadConstraints.maxWidth;
+                                final roadStartX = 32.0;
+                                final roadEndX = parentWidth - 32.0;
+                                final roadWidth = roadEndX - roadStartX;
+                                
+                                // Mascot bounce and tilt
+                                final bounceFactor = math.sin(val * math.pi * 20).abs();
+                                final yBounce = val >= 0.99 ? 0.0 : -bounceFactor * 12.0;
+                                final tiltAngle = val >= 0.99 ? 0.0 : math.sin(val * math.pi * 20) * 0.08;
+                                
+                                return SizedBox(
+                                  height: 180,
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      // Road background
+                                      Positioned(
+                                        left: roadStartX,
+                                        right: 32.0,
+                                        bottom: 50,
+                                        child: Container(
+                                          height: 16,
+                                          decoration: BoxDecoration(
+                                            color: DuoColors.lockedGray,
+                                            borderRadius: BorderRadius.circular(8),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(alpha: 0.04),
+                                                blurRadius: 4,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+
+                                      // Active/completed road path
+                                      Positioned(
+                                        left: roadStartX,
+                                        bottom: 50,
+                                        child: Container(
+                                          height: 16,
+                                          width: roadWidth * val,
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFF4ADE80), // Tailwind green-400
+                                                Color(0xFF22C55E), // Tailwind green-500
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+
+                                      // Milestone 1 (25%): Self-care Bed
+                                      _buildMilestone(
+                                        left: roadStartX + roadWidth * 0.25 - 23,
+                                        bottom: 35,
+                                        isActive: val >= 0.25,
+                                        icon: Icons.bed_rounded,
+                                        color: Colors.blue,
+                                        label: 'Tự lập',
+                                      ),
+
+                                      // Milestone 2 (50%): Road Safety
+                                      _buildMilestone(
+                                        left: roadStartX + roadWidth * 0.50 - 23,
+                                        bottom: 35,
+                                        isActive: val >= 0.50,
+                                        icon: Icons.traffic_rounded,
+                                        color: Colors.orange,
+                                        label: 'An toàn',
+                                      ),
+
+                                      // Milestone 3 (75%): Environment Trash
+                                      _buildMilestone(
+                                        left: roadStartX + roadWidth * 0.75 - 23,
+                                        bottom: 35,
+                                        isActive: val >= 0.75,
+                                        icon: Icons.recycling_rounded,
+                                        color: Colors.green,
+                                        label: 'Môi trường',
+                                      ),
+
+                                      // Milestone 4 (100%): Superhero Badge
+                                      _buildMilestone(
+                                        left: roadStartX + roadWidth * 1.0 - 23,
+                                        bottom: 35,
+                                        isActive: val >= 0.99,
+                                        icon: Icons.workspace_premium_rounded,
+                                        color: Colors.amber,
+                                        label: 'Anh hùng',
+                                        isFinish: true,
+                                      ),
+
+                                      // Moving Mascot Cat
+                                      Positioned(
+                                        left: roadStartX + (roadWidth * val) - 40,
+                                        bottom: 60, // Sits above the road
+                                        child: Transform.translate(
+                                          offset: Offset(0, yBounce),
+                                          child: Transform.rotate(
+                                            angle: tiltAngle,
+                                            child: SizedBox(
+                                              width: 80,
+                                              height: 80,
+                                              child: Image.asset(
+                                                'assets/images/mascot/mascot-cat-happy-wave.webp',
+                                                fit: BoxFit.contain,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+
+                        // Bottom: Custom Copywriting & Progress Bubble
+                        Column(
+                          children: [
+                            // Text Bubble
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: DuoColors.border.withValues(alpha: 0.6),
+                                  width: 2.0,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(opacity: animation, child: child);
+                                },
+                                child: Text(
+                                  _loadingTexts[_textIndex],
+                                  key: ValueKey<int>(_textIndex),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: DuoColors.textSecondary,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Progress Percentage
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: DuoColors.softYellow,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: Text(
+                                'Đang tải: ${(widget.progress * 100).toInt()}%',
+                                style: const TextStyle(
+                                  color: DuoColors.darkYellow,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  Widget _buildMilestone({
+    required double left,
+    required double bottom,
+    required bool isActive,
+    required IconData icon,
+    required Color color,
+    required String label,
+    bool isFinish = false,
+  }) {
+    final activeColor = isFinish ? const Color(0xFFFACC15) : color;
+    
+    return Positioned(
+      left: left,
+      bottom: bottom,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut,
+            width: isActive ? 46 : 40,
+            height: isActive ? 46 : 40,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isActive ? activeColor : DuoColors.lockedGray,
+                width: isActive ? 3.0 : 2.0,
+              ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: activeColor.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                color: isActive ? activeColor : DuoColors.textSecondary.withValues(alpha: 0.6),
+                size: isActive ? 24 : 20,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? DuoColors.textPrimary : DuoColors.textSecondary.withValues(alpha: 0.6),
+              fontSize: 11,
+              fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -620,11 +1039,23 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
       return;
     }
 
+    final currentIdx = _situations.indexWhere((s) => s.situationId == lesson.situationId);
+    final isLastLesson = currentIdx != -1 && currentIdx == _situations.length - 1;
+    final nextSituation = (currentIdx != -1 && currentIdx < _situations.length - 1)
+        ? _situations[currentIdx + 1]
+        : null;
+
+    final currentIslandIndex = _islands.indexWhere((i) => i.islandId == lesson.islandId);
+    final nextIsland = (currentIslandIndex != -1 && currentIslandIndex < _islands.length - 1)
+        ? _islands[currentIslandIndex + 1]
+        : null;
+
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LessonGameScreen(
           lesson: lesson,
           profileStorage: widget.profileStorage,
+          isLastLesson: isLastLesson,
           onLessonCompleted: (profile) {
             if (mounted) {
               setState(() {
@@ -632,6 +1063,30 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
               });
             }
           },
+          onNextLesson: nextSituation != null
+              ? () async {
+                  Navigator.of(context).pop();
+                  final isUnlocked = _isSituationUnlocked(
+                    nextSituation,
+                    _profile?.isPremium ?? false,
+                  );
+                  if (isUnlocked) {
+                    await _selectSituation(nextSituation);
+                    await _openLesson();
+                  } else {
+                    unawaited(_showPremiumOffer());
+                  }
+                }
+              : null,
+          onCompleteIsland: isLastLesson
+              ? () async {
+                  Navigator.of(context).pop();
+                  final currentIsland = _islandById(_islands, lesson.islandId);
+                  if (currentIsland != null) {
+                    await _showIslandCompletionDialog(currentIsland, nextIsland);
+                  }
+                }
+              : null,
         ),
       ),
     );
@@ -690,6 +1145,9 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
             situationService: _situationService,
             profileStorage: widget.profileStorage,
             isActive: _selectedTabIndex == 1,
+            onStartLesson: (situationId, islandId) {
+              unawaited(_startSuggestedLesson(situationId, islandId));
+            },
           ),
           const _PracticeTabPage(),
           ProfileScreen(
@@ -704,6 +1162,312 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
           setState(() {
             _selectedTabIndex = index;
           });
+        },
+      ),
+    );
+  }
+
+  Future<void> _startSuggestedLesson(int situationId, int islandId) async {
+    final island = _islandById(_islands, islandId);
+    if (island != null) {
+      _selectIsland(island);
+    }
+
+    setState(() {
+      _selectedTabIndex = 0;
+      _loadingSituationId = situationId;
+    });
+
+    try {
+      final detail = await _situationService.getSituationDetail(situationId);
+      final lesson = _lessonFromSituation(detail);
+      if (!mounted) return;
+
+      setState(() {
+        _activeLesson = lesson;
+      });
+
+      await _openLesson();
+    } catch (error) {
+      debugPrint('Failed to start suggested lesson: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingSituationId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _showIslandCompletionDialog(
+    _IslandCatalogEntry completedIsland,
+    _IslandCatalogEntry? nextIsland,
+  ) async {
+    bool allLessonsCompleted = false;
+    if (_profile != null) {
+      allLessonsCompleted = _profile!.completedLessonCount >= 9;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return _IslandCompletionDialog(
+          completedIsland: completedIsland,
+          nextIsland: nextIsland,
+          allLessonsCompleted: allLessonsCompleted,
+          onExploreNext: () {
+            Navigator.of(context).pop();
+            if (nextIsland != null) {
+              _selectIsland(nextIsland);
+            }
+          },
+          onBackHome: () {
+            Navigator.of(context).pop();
+            _showIslands();
+          },
+        );
+      },
+    );
+  }
+}
+
+class _IslandCompletionDialog extends StatefulWidget {
+  const _IslandCompletionDialog({
+    required this.completedIsland,
+    this.nextIsland,
+    required this.allLessonsCompleted,
+    required this.onExploreNext,
+    required this.onBackHome,
+  });
+
+  final _IslandCatalogEntry completedIsland;
+  final _IslandCatalogEntry? nextIsland;
+  final bool allLessonsCompleted;
+  final VoidCallback onExploreNext;
+  final VoidCallback onBackHome;
+
+  @override
+  State<_IslandCompletionDialog> createState() => _IslandCompletionDialogState();
+}
+
+class _IslandCompletionDialogState extends State<_IslandCompletionDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final next = widget.nextIsland;
+    final hasNext = next != null && !widget.allLessonsCompleted;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final progress = _controller.value;
+
+          return Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              // Rotating celebration rays behind the dialog
+              Positioned(
+                width: 600,
+                height: 600,
+                child: CustomPaint(
+                  painter: _CelebrationRaysPainter(progress),
+                ),
+              ),
+              // Fireworks overlay
+              Positioned(
+                width: 500,
+                height: 500,
+                child: CustomPaint(
+                  painter: _SideFireworksPainter(progress),
+                ),
+              ),
+              Positioned(
+                width: 400,
+                height: 400,
+                child: CustomPaint(
+                  painter: _CenterBurstPainter(progress),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: math.min(size.width - 32, 400),
+                  maxHeight: size.height - 40,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Material(
+                    color: Colors.white,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF8BC34A), Color(0xFF4CAF50)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Center(
+                              child: Container(
+                                width: 72,
+                                height: 72,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Color(0x1A000000),
+                                      blurRadius: 8,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.emoji_events_rounded,
+                                  color: Color(0xFFFFB300),
+                                  size: 40,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                            child: Column(
+                              children: [
+                                Text(
+                                  widget.allLessonsCompleted ? 'HOÀN THÀNH XUẤT SẮC!' : 'HOÀN THÀNH ĐẢO!',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Color(0xFF2E7D32),
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  widget.allLessonsCompleted
+                                      ? 'Chúc mừng bé đã hoàn thành xuất sắc tất cả các bài học! Bé thật tuyệt vời!'
+                                      : 'Chúc mừng bé đã hoàn thành xuất sắc các bài học tại',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: DuoColors.textSecondary,
+                                      ),
+                                ),
+                                if (!widget.allLessonsCompleted) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    widget.completedIsland.name,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: DuoColors.textPrimary,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 20),
+                                Image.asset(
+                                  'assets/images/mascot/mascot-cat-happy-wave.webp',
+                                  width: 130,
+                                  height: 130,
+                                  fit: BoxFit.contain,
+                                ),
+                                const SizedBox(height: 24),
+                                if (hasNext) ...[
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F8E9),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: const Color(0xFFDCEDC8),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'Đảo tiếp theo gợi ý cho bé:',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[700],
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          next.name,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w900,
+                                            color: Color(0xFF33691E),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: DuoPrimaryButton(
+                                      label: 'Khám phá ngay',
+                                      icon: Icons.arrow_forward_rounded,
+                                      backgroundColor: DuoColors.success,
+                                      onPressed: widget.onExploreNext,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: DuoPrimaryButton(
+                                    label: hasNext ? 'Về trang chủ' : 'Tuyệt vời, về trang chủ',
+                                    icon: Icons.home_rounded,
+                                    backgroundColor: const Color(0xFFE2E8F0),
+                                    onPressed: widget.onBackHome,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
         },
       ),
     );
@@ -794,9 +1558,9 @@ class _PremiumOfferDialog extends StatefulWidget {
 }
 
 class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
-  final TextEditingController _codeController = TextEditingController();
   bool _canDismiss = false;
   bool _isSubmitting = false;
+  bool _showSuccess = false;
   String? _errorText;
   Timer? _dismissTimer;
 
@@ -817,12 +1581,11 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
   @override
   void dispose() {
     _dismissTimer?.cancel();
-    _codeController.dispose();
     super.dispose();
   }
 
   Future<void> _activatePremium() async {
-    if (_isSubmitting) {
+    if (_isSubmitting || _showSuccess) {
       return;
     }
 
@@ -831,16 +1594,27 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
       _errorText = null;
     });
 
+    // 1. Loading effect for 1 second
+    await Future<void>.delayed(const Duration(milliseconds: 1000));
+    if (!mounted) {
+      return;
+    }
+
     try {
-      final profile = await widget.profileStorage.activatePremium(
-        _codeController.text,
-      );
+      // 2. Activate Premium directly with default code
+      final profile = await widget.profileStorage.activatePremium('PREMIUM');
       if (!mounted) {
         return;
       }
 
+      // Notify parent to rebuild workspace and unlock premium features
       widget.onPremiumActivated(profile);
-      Navigator.of(context).pop();
+
+      // 3. Show success pop-up
+      setState(() {
+        _isSubmitting = false;
+        _showSuccess = true;
+      });
     } on PremiumActivationException catch (error) {
       if (!mounted) {
         return;
@@ -887,145 +1661,24 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
                   left: 0,
                   right: 0,
                   top: 0,
-                  child: Container(height: 14, color: DuoColors.primaryYellow),
+                  child: Container(
+                    height: 14,
+                    color: _showSuccess ? const Color(0xFF8BC34A) : DuoColors.primaryYellow,
+                  ),
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(24, 34, 24, 26),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'SMARTSTEPS\nPREMIUM',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFF8BC34A),
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          height: 1.18,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 30,
-                            height: 30,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFFF1B8),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.rocket_launch_rounded,
-                              color: Color(0xFFFF8F00),
-                              size: 19,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Mở khóa toàn bộ hành trình học tập',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      const _PremiumBenefitRow('AI gợi ý bài học mỗi ngày'),
-                      const _PremiumBenefitRow('Không giới hạn màn chơi'),
-                      const _PremiumBenefitRow(
-                        'Huy hiệu và phần thưởng đặc biệt',
-                      ),
-                      const _PremiumBenefitRow('Theo dõi tiến bộ của bé'),
-                      const _PremiumBenefitRow('Chế độ luyện tập nâng cao'),
-                      const SizedBox(height: 20),
-                      TextField(
-                        key: const ValueKey('premium-code-field'),
-                        controller: _codeController,
-                        textCapitalization: TextCapitalization.characters,
-                        decoration: InputDecoration(
-                          hintText: 'Nhập mã PREMIUM',
-                          errorText: _errorText,
-                          filled: true,
-                          fillColor: const Color(0xFFFFF4C2),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: DuoColors.border,
-                              width: 2,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: DuoColors.darkYellow,
-                              width: 2,
-                            ),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFBA1A1A),
-                              width: 2,
-                            ),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFBA1A1A),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SmartStepsPressEffect(
-                        enabled: !_isSubmitting,
-                        child: FilledButton.icon(
-                          key: const ValueKey('premium-code-submit-button'),
-                          onPressed: _isSubmitting
-                              ? null
-                              : () {
-                                  unawaited(_activatePremium());
-                                },
-                          icon: const Icon(
-                            Icons.workspace_premium_rounded,
-                            color: Color(0xFFFF7A1A),
-                            size: 24,
-                          ),
-                          label: _isSubmitting
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.6,
-                                    color: Colors.black,
-                                  ),
-                                )
-                              : const Text('Kích hoạt Premium'),
-                          style: FilledButton.styleFrom(
-                            elevation: 0,
-                            backgroundColor: const Color(0xFFFFE99C),
-                            foregroundColor: Colors.black,
-                            minimumSize: const Size(double.infinity, 56),
-                            textStyle: const TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _showSuccess
+                        ? _buildSuccessContent(context)
+                        : _buildOfferContent(context),
                   ),
                 ),
                 Positioned(
                   top: 18,
                   right: 14,
-                  child: _canDismiss
+                  child: (_canDismiss && !_showSuccess)
                       ? Tooltip(
                           message: 'Đóng',
                           child: IconButton.filled(
@@ -1045,6 +1698,169 @@ class _PremiumOfferDialogState extends State<_PremiumOfferDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildOfferContent(BuildContext context) {
+    return Column(
+      key: const ValueKey('offer-content'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'SMARTSTEPS\nPREMIUM',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF8BC34A),
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            height: 1.18,
+          ),
+        ),
+        const SizedBox(height: 22),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF1B8),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.rocket_launch_rounded,
+                color: Color(0xFFFF8F00),
+                size: 19,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Mở khóa toàn bộ hành trình học tập',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const _PremiumBenefitRow('AI gợi ý bài học mỗi ngày'),
+        const _PremiumBenefitRow('Không giới hạn màn chơi'),
+        const _PremiumBenefitRow(
+          'Huy hiệu và phần thưởng đặc biệt',
+        ),
+        const _PremiumBenefitRow('Theo dõi tiến bộ của bé'),
+        const _PremiumBenefitRow('Chế độ luyện tập nâng cao'),
+        if (_errorText != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorText!,
+            style: const TextStyle(color: Color(0xFFBA1A1A), fontSize: 14),
+          ),
+        ],
+        const SizedBox(height: 24),
+        SmartStepsPressEffect(
+          enabled: !_isSubmitting,
+          child: FilledButton.icon(
+            key: const ValueKey('premium-code-submit-button'),
+            onPressed: _isSubmitting ? null : _activatePremium,
+            icon: const Icon(
+              Icons.workspace_premium_rounded,
+              color: Color(0xFFFF7A1A),
+              size: 24,
+            ),
+            label: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.6,
+                      color: Colors.black,
+                    ),
+                  )
+                : const Text('Kích hoạt Premium'),
+            style: FilledButton.styleFrom(
+              elevation: 0,
+              backgroundColor: const Color(0xFFFFE99C),
+              foregroundColor: Colors.black,
+              minimumSize: const Size(double.infinity, 56),
+              textStyle: const TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSuccessContent(BuildContext context) {
+    return Column(
+      key: const ValueKey('success-content'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 84,
+          height: 84,
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFF9C4),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.workspace_premium_rounded,
+            color: Color(0xFFFFB300),
+            size: 52,
+          ),
+        ),
+        const SizedBox(height: 22),
+        const Text(
+          'SMARTSTEPS PREMIUM',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFFFF9100),
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'NÂNG CẤP THÀNH CÔNG!',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF2E7D32),
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Chúc mừng bé đã mở khóa toàn bộ hành trình và các tính năng đặc quyền!',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: DuoColors.textSecondary,
+              ),
+        ),
+        const SizedBox(height: 20),
+        Image.asset(
+          'assets/images/mascot/mascot-cat-happy-wave.webp',
+          width: 140,
+          height: 140,
+          fit: BoxFit.contain,
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: DuoPrimaryButton(
+            label: 'Bắt đầu trải nghiệm!',
+            icon: Icons.rocket_launch_rounded,
+            backgroundColor: DuoColors.primaryYellow,
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -4624,7 +5440,12 @@ class _SmartStepsLandingPageState extends State<SmartStepsLegacyLandingPage> {
     }
 
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => LessonGameScreen(lesson: lesson)),
+      MaterialPageRoute<void>(
+        builder: (_) => LessonGameScreen(
+          lesson: lesson,
+          isLastLesson: false,
+        ),
+      ),
     );
 
     if (mounted) {
@@ -4855,31 +5676,31 @@ class GameColors {
 class LessonAssets {
   const LessonAssets._();
 
-  static const logo = 'assets/images/logo/logo smartstep-01.png';
-  static const islandBackground = 'assets/images/inslandBackground.png';
-  static const rootMapBackground = 'assets/images/land/screen.png';
-  static const landIsland1 = 'assets/images/land/bg-land-1.png';
-  static const landIsland2 = 'assets/images/land/bg-land-2.png';
-  static const landIsland3 = 'assets/images/land/bg-land-3.png';
-  static const island1Background = 'assets/images/Insland1_Background.png';
-  static const island2Background = 'assets/images/Insland2_Background.png';
-  static const island3Background = 'assets/images/Insland3_Background.png';
-  static const livingRoom = 'assets/images/living_room.jpg';
-  static const islandIcon = 'assets/images/Island_Icon.png';
-  static const kid = 'assets/images/kid.png';
-  static const childHappy = 'assets/images/child-happy.png';
-  static const childChoking = 'assets/images/child-choking.png';
-  static const mother = 'assets/images/mother.png';
-  static const ball = 'assets/images/ball.png';
-  static const mascot = 'assets/images/mascot/mascot-cat-happy.png';
+  static const logo = 'assets/images/logo/logo smartstep-01.webp';
+  static const islandBackground = 'assets/images/inslandBackground.webp';
+  static const rootMapBackground = 'assets/images/land/screen.webp';
+  static const landIsland1 = 'assets/images/land/bg-land-1.webp';
+  static const landIsland2 = 'assets/images/land/bg-land-2.webp';
+  static const landIsland3 = 'assets/images/land/bg-land-3.webp';
+  static const island1Background = 'assets/images/Insland1_Background.webp';
+  static const island2Background = 'assets/images/Insland2_Background.webp';
+  static const island3Background = 'assets/images/Insland3_Background.webp';
+  static const livingRoom = 'assets/images/living_room.webp';
+  static const islandIcon = 'assets/images/Island_Icon.webp';
+  static const kid = 'assets/images/kid.webp';
+  static const childHappy = 'assets/images/child-happy.webp';
+  static const childChoking = 'assets/images/child-choking.webp';
+  static const mother = 'assets/images/mother.webp';
+  static const ball = 'assets/images/ball.webp';
+  static const mascot = 'assets/images/mascot/mascot-cat-happy.webp';
   static const mascotHappyWave =
-      'assets/images/mascot/mascot-cat-happy-wave.png';
-  static const mascotSpeaking = 'assets/images/mascot/mascot-cat-speaking.png';
-  static const mascotSinging = 'assets/images/mascot/mascot-cat-singing.png';
+      'assets/images/mascot/mascot-cat-happy-wave.webp';
+  static const mascotSpeaking = 'assets/images/mascot/mascot-cat-speaking.webp';
+  static const mascotSinging = 'assets/images/mascot/mascot-cat-singing.webp';
   static const mascotConfident =
-      'assets/images/mascot/mascot-cat-confident.png';
-  static const mascotSulking = 'assets/images/mascot/mascot-cat-sulking.png';
-  static const rewardStar = 'assets/images/reward-star.png';
+      'assets/images/mascot/mascot-cat-confident.webp';
+  static const mascotSulking = 'assets/images/mascot/mascot-cat-sulking.webp';
+  static const rewardStar = 'assets/images/reward-star.webp';
 }
 
 class SafetyLesson {
@@ -5397,11 +6218,17 @@ class LessonGameScreen extends StatefulWidget {
     required this.lesson,
     this.profileStorage,
     this.onLessonCompleted,
+    required this.isLastLesson,
+    this.onNextLesson,
+    this.onCompleteIsland,
   });
 
   final SafetyLesson lesson;
   final LocalProfileStorage? profileStorage;
   final ValueChanged<ChildProfile>? onLessonCompleted;
+  final bool isLastLesson;
+  final VoidCallback? onNextLesson;
+  final VoidCallback? onCompleteIsland;
 
   @override
   State<LessonGameScreen> createState() => _LessonGameScreenState();
@@ -5720,7 +6547,12 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                           onContinue: _showParentPanel,
                         ),
                       if (_phase == LessonPhase.parent)
-                        _ParentNotesPanel(notes: lesson.parentNotes),
+                        _ParentNotesPanel(
+                          notes: lesson.parentNotes,
+                          isLastLesson: widget.isLastLesson,
+                          onNextLesson: widget.onNextLesson,
+                          onCompleteIsland: widget.onCompleteIsland,
+                        ),
                       if (_isResultFocusPhase)
                         _CompactLessonControls(
                           onRestart: _restartLesson,
@@ -9347,9 +10179,17 @@ class _RewardPanel extends StatelessWidget {
 }
 
 class _ParentNotesPanel extends StatelessWidget {
-  const _ParentNotesPanel({required this.notes});
+  const _ParentNotesPanel({
+    required this.notes,
+    required this.isLastLesson,
+    this.onNextLesson,
+    this.onCompleteIsland,
+  });
 
   final ParentNotes notes;
+  final bool isLastLesson;
+  final VoidCallback? onNextLesson;
+  final VoidCallback? onCompleteIsland;
 
   @override
   Widget build(BuildContext context) {
@@ -9381,6 +10221,16 @@ class _ParentNotesPanel extends StatelessWidget {
               icon: Icons.health_and_safety_rounded,
               title: 'Cần chú ý',
               body: notes.risk,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: DuoPrimaryButton(
+                label: isLastLesson ? 'Hoàn thành đảo' : 'Bài học tiếp theo',
+                icon: isLastLesson ? Icons.emoji_events_rounded : Icons.arrow_forward_rounded,
+                backgroundColor: isLastLesson ? DuoColors.primaryYellow : DuoColors.success,
+                onPressed: isLastLesson ? onCompleteIsland : onNextLesson,
+              ),
             ),
           ],
         ),
