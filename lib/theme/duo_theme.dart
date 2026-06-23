@@ -3,16 +3,18 @@ import 'package:flutter/material.dart';
 class DuoColors {
   const DuoColors._();
 
-  static const primaryYellow = Color(0xFFFFC928);
-  static const darkYellow = Color(0xFFE5A900);
-  static const background = Color(0xFFFFF8E1);
+  static const primaryYellow = Color(0xFFFACC15); // Tailwind yellow-400
+  static const darkYellow = Color(0xFFEAB308); // Tailwind yellow-500
+  static const tactileShadow = Color(0xFFC99D00); // Tactile button shadow
+  static const background = Color(0xFFFFFDF7);
   static const card = Color(0xFFFFFFFF);
-  static const textPrimary = Color(0xFF2D2D2D);
-  static const textSecondary = Color(0xFF777777);
-  static const success = Color(0xFF58CC02);
-  static const lockedGray = Color(0xFFD9D9D9);
-  static const softYellow = Color(0xFFFFF0A8);
-  static const border = Color(0xFFFFE082);
+  static const textPrimary = Color(0xFF0F172A); // Tailwind slate-900
+  static const textSecondary = Color(0xFF475569); // Tailwind slate-600
+  static const success = Color(0xFF15803D); // Tailwind green-700
+  static const lockedGray = Color(0xFFE2E8F0); // Tailwind slate-200
+  static const lockedShadow = Color(0xFFCBD5E1); // Shadow for locked button
+  static const softYellow = Color(0xFFFEFCE8); // Tailwind yellow-50
+  static const border = Color(0xFFFEF08A); // Tailwind yellow-200
 }
 
 class DuoTheme {
@@ -63,7 +65,7 @@ class DuoTheme {
         style: FilledButton.styleFrom(
           minimumSize: const Size(0, 52),
           backgroundColor: DuoColors.primaryYellow,
-          foregroundColor: DuoColors.textPrimary,
+          foregroundColor: Colors.white,
           disabledBackgroundColor: DuoColors.lockedGray,
           disabledForegroundColor: DuoColors.textSecondary,
           elevation: 0,

@@ -1,8 +1,8 @@
 import '../models/situation.dart';
 
-const _personalSafetyIsland = 'Đảo an toàn cá nhân';
-const _socialSafetyIsland = 'Đảo an toàn xã hội';
-const _environmentSafetyIsland = 'Đảo an toàn môi trường';
+const _personalSafetyIsland = 'Đảo An Toàn';
+const _socialSafetyIsland = 'Đảo Tình Bạn';
+const _environmentSafetyIsland = 'Đảo Trường Học';
 
 const offlineIslandSummaries = [
   IslandSummary(
@@ -10,7 +10,7 @@ const offlineIslandSummaries = [
     name: _personalSafetyIsland,
     description:
         'Bé học cách nhận biết nguy hiểm gần cơ thể và đồ dùng quen thuộc.',
-    imageUrl: 'assets/images/island/safety-island.png',
+    imageUrl: 'assets/images/Island_Icon.webp',
     orderIndex: 1,
     status: 'Published',
     situationCount: 3,
@@ -20,7 +20,7 @@ const offlineIslandSummaries = [
     name: _socialSafetyIsland,
     description:
         'Bé luyện cách xử lý khi gặp người lạ, bạn bè và các tình huống xã hội.',
-    imageUrl: 'assets/images/Island_Icon.png',
+    imageUrl: 'assets/images/Island_Icon.webp',
     orderIndex: 2,
     status: 'Published',
     situationCount: 3,
@@ -29,7 +29,7 @@ const offlineIslandSummaries = [
     islandId: 3,
     name: _environmentSafetyIsland,
     description: 'Bé học giữ an toàn khi đi lại, ở nơi công cộng và gần nước.',
-    imageUrl: 'assets/images/Island_Icon.png',
+    imageUrl: 'assets/images/Island_Icon.webp',
     orderIndex: 3,
     status: 'Published',
     situationCount: 3,
@@ -64,14 +64,14 @@ final offlineSituationDetails = <SituationDetail>[
         'Nếu con nhặt được một viên bi hoặc vật nhỏ lạ trên sàn, con nên làm gì?',
     riskAlert:
         'Trẻ nhỏ khám phá thế giới bằng cách ngậm đồ vật. Hãy giữ các loại pin nút, nam châm hoặc những dị vật xa tầm tay bé.',
-    introMedia: 'assets/videos/Safety_smallitems/lesson1-intro.mp4',
-    wrongMedia: 'assets/videos/Safety_smallitems/lesson1-wrong.mp4',
-    correctMedia: 'assets/videos/Safety_smallitems/lesson1-correct.mp4',
+    introMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136864/Safety_smallitems_intro_cw1tlh.mp4',
+    wrongMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136866/Safety_smallitems_wrong_pjogba.mp4',
+    correctMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136882/Safety_smallitems_correct_u5ubla.mp4',
     questionVoice: 'assets/voices/Safety_smallitems/question.mp3',
     optionAVoice: 'assets/voices/Safety_smallitems/choice-put-mouth.mp3',
     optionBVoice: 'assets/voices/Safety_smallitems/choice-ask-adult.mp3',
-    optionAImage: 'assets/images/flashCard/Safety_smallitems/wrong.png',
-    optionBImage: 'assets/images/flashCard/Safety_smallitems/Correct.png',
+    optionAImage: 'assets/images/flashCard/Safety_smallitems/wrong.webp',
+    optionBImage: 'assets/images/flashCard/Safety_smallitems/Correct.webp',
   ),
   _lesson(
     situationId: 102,
@@ -151,14 +151,14 @@ final offlineSituationDetails = <SituationDetail>[
         'Nếu một người lạ gọi đúng tên con và bảo lên xe để chở về với bố mẹ, con có đi theo không?',
     riskAlert:
         'Bé rất dễ mất cảnh giác khi người lạ ăn mặc đẹp, tỏ ra thân thiện và biết rõ tên bé.',
-    introMedia: 'assets/videos/Safety_stranger/Intro.mp4',
-    wrongMedia: 'assets/videos/Safety_stranger/wrong.mp4',
-    correctMedia: 'assets/videos/Safety_stranger/correct.mp4',
+    introMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136847/Safety_stranger_Intro_chanol.mp4',
+    wrongMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136791/Safety_stranger_wrong_dgsjbj.mp4',
+    correctMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136761/Safety_stranger_correct_rkwehk.mp4',
     questionVoice: 'assets/voices/Safety_stranger/question_l3.mp3',
     optionAVoice: 'assets/voices/Safety_stranger/wrong_l3.mp3',
     optionBVoice: 'assets/voices/Safety_stranger/correct_l3.mp3',
-    optionAImage: 'assets/images/flashCard/Safety_stranger/Wrong.png',
-    optionBImage: 'assets/images/flashCard/Safety_stranger/Correct.png',
+    optionAImage: 'assets/images/flashCard/Safety_stranger/Wrong.webp',
+    optionBImage: 'assets/images/flashCard/Safety_stranger/Correct.webp',
   ),
   _lesson(
     situationId: 202,
@@ -237,14 +237,14 @@ final offlineSituationDetails = <SituationDetail>[
     skillDescription: 'Biết chờ đèn xanh trước khi qua đường.',
     practicePrompt: 'Đèn màu gì thì mình mới được đi qua đường hả con?',
     riskAlert: 'Bé vẫn hay quên nhìn hai bên trước khi qua đường.',
-    introMedia: 'assets/videos/Crossroad/intro.mp4',
-    wrongMedia: 'assets/videos/Crossroad/wrong.mp4',
-    correctMedia: 'assets/videos/Crossroad/correct.mp4',
+    introMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136588/cross-road-intro_tnrhmy.mp4',
+    wrongMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136583/cross-road-wrong_fnc8fg.mp4',
+    correctMedia: 'https://res.cloudinary.com/dtm5a4bwr/video/upload/v1781136648/cross-road-correct_r36izw.mp4',
     questionVoice: 'assets/voices/Crossroad/Question.mp3',
     optionAVoice: 'assets/voices/Crossroad/wrong.mp3',
     optionBVoice: 'assets/voices/Crossroad/correct.mp3',
-    optionAImage: 'assets/images/flashCard/Crossroad/Wrong.png',
-    optionBImage: 'assets/images/flashCard/Crossroad/Correct.png',
+    optionAImage: 'assets/images/flashCard/Crossroad/Wrong.webp',
+    optionBImage: 'assets/images/flashCard/Crossroad/Correct.webp',
   ),
   _lesson(
     situationId: 302,

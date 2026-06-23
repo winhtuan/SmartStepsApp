@@ -195,7 +195,7 @@ class _AppFeedbackDialogState extends State<AppFeedbackDialog> {
                   labelText: 'Một điều muốn cải thiện',
                   hintText: 'Ví dụ: thêm giọng đọc, thêm bài, nút rõ hơn...',
                   filled: true,
-                  fillColor: const Color(0xFFFFF8E1),
+                  fillColor: DuoColors.background,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(18),
                     borderSide: const BorderSide(color: DuoColors.border),
@@ -306,7 +306,7 @@ class _RatingChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: isSelected ? DuoColors.primaryYellow : const Color(0xFFFFF8E1),
+      color: isSelected ? DuoColors.primaryYellow : DuoColors.background,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),

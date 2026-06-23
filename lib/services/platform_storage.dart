@@ -6,6 +6,8 @@ abstract class PlatformStorage {
   Future<bool> hasKey(String key);
   Future<String?> readString(String key);
   Future<void> writeString(String key, String value);
+  Future<void> deleteKey(String key);
 }
 
-PlatformStorage createPlatformStorage(dynamic directory) => getPlatformStorage(directory);
+PlatformStorage createPlatformStorage(dynamic directory) =>
+    getPlatformStorage(directory);

@@ -40,7 +40,7 @@ class LoginScreen extends StatelessWidget {
                     child: Align(
                       alignment: const Alignment(0, -0.72),
                       child: Image.asset(
-                        'assets/images/logo/logo smartstep-01.png',
+                        'assets/images/logo/logo smartstep-01.webp',
                         width: 190 * scale,
                         fit: BoxFit.contain,
                       ),
@@ -204,7 +204,7 @@ class LoginScreen extends StatelessWidget {
                                 style: FilledButton.styleFrom(
                                   elevation: 0,
                                   backgroundColor: DuoColors.primaryYellow,
-                                  foregroundColor: DuoColors.textPrimary,
+                                  foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(28),
                                   ),
@@ -214,7 +214,7 @@ class LoginScreen extends StatelessWidget {
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                child: const Text('Đăng nhập v1.0.1'),
+                                child: const Text('Đăng nhập'),
                               ),
                             ),
                           ),

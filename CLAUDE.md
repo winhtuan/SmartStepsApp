@@ -1,38 +1,65 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-## Common commands
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-- `flutter pub get`
-- `dart format lib test`
-- `flutter analyze`
-- `flutter test`
-- `flutter test test/widget_test.dart`
-- `flutter test --plain-name "parent report shows skills and practice questions" test/widget_test.dart`
-- `flutter devices`
-- `flutter run -d chrome`
-- `flutter build apk`
-- `flutter build web`
-- `flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
-- `flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... --dart-define=SUPABASE_AVATAR_BUCKET=avatars`
+## 1. Think Before Coding
 
-## High-level architecture
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-- `lib/main.dart` is only the entrypoint. The real app shell, tab scaffold, catalog flow, premium flow, and lesson gameplay all live in `lib/screens/home_screen.dart`. Expect many product-level changes to touch that file.
-- Navigation is imperative (`Navigator.push` / `pushReplacement`), with state held mostly in `StatefulWidget`s and services passed by constructor. There is no separate state-management package. The only app-wide shared object is audio, exposed through `SmartStepsAudioScope` in `lib/services/app_audio_controller.dart`.
-- The lesson/content boundary is `SituationService`. It currently returns bundled offline data from `lib/data/offline_situation_catalog.dart`, but `lib/models/situation.dart` models the data as islands → situations → detail → steps/flashcard/skills/parentReview, so the service can later be swapped to a real backend without changing the UI contract.
-- `LocalProfileStorage` in `lib/services/local_profile_storage.dart` is the local persistence layer. It stores `child_profile.json`, `app_feedback.json`, and `feedback_prompt_state.json` under the app documents directory in a `SmartSteps/` folder. Initial survey completion, premium status, skill progress, and feedback prompt state are all local-first.
-- The main user flow is: `LoginScreen` → optional `InitialSurveyScreen` (when no local profile exists) → `SmartStepsCatalogPage`. The catalog page is an `IndexedStack` with 4 tabs: lesson map, parent report, quick review/practice, and profile.
-- `home_screen.dart` also contains the `SafetyLesson` mapping layer and the `LessonGameScreen`. A `SituationDetail` is transformed into an in-app lesson state machine: intro media → flashcard/question → wrong/correct result media → reward → parent notes.
-- Parent report (`lib/screens/learn_screen.dart`) and quick review (`lib/screens/quick_review_screen.dart`) are content reuse layers over the same lesson data. Report cards derive their skill/practice/risk text from `SituationDetail`, `ParentReviewQuestion`, and locally stored `SkillProgress`.
-- Styling is centralized in `lib/theme/duo_theme.dart` and reusable building blocks live in `lib/widgets/duo_components.dart`. Button press animation/sound behavior is wrapped in `lib/widgets/smartsteps_press_effect.dart`; prefer these existing primitives before adding new UI patterns.
-- Media behavior is split across `video_player` for lesson clips and `audioplayers` for music/SFX/voice. Widget tests fake `VideoPlayerPlatform`, so media-related UI changes often require test updates in `test/widget_test.dart`.
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-## Project-specific notes
+## 2. Simplicity First
 
-- Lesson content currently ships offline. To add a new lesson, put media under `assets/videos/*` and `assets/voices/*`, register new asset folders in `pubspec.yaml` if needed, then add the matching `SituationDetail` entry in `lib/data/offline_situation_catalog.dart`.
-- Supabase is optional. It is initialized only when `SUPABASE_URL` and `SUPABASE_ANON_KEY` are provided via `--dart-define`. Current usage is limited to avatar public URLs in `lib/services/registration_avatar_service.dart`; the lesson catalog does not currently depend on Supabase.
-- Premium is also local-first right now. Activation code is `PREMIUM` in `LocalProfileStorage`, and premium lesson unlock rules are checked in UI code inside `lib/screens/home_screen.dart`.
-- Use `.code-review-graph/graph.html` or `.code-review-graph/graph.db` before broad edits. This repo has a few large, mixed-responsibility files, especially `lib/screens/home_screen.dart`, so impact is easier to underestimate than the folder layout suggests.
-- `test/widget_test.dart` is a real flow test, not the default Flutter placeholder. It covers login → survey → catalog → lesson/report behavior using injected fake services, so changes to keys, navigation, survey fields, premium flow, lesson progression, or report copy can break it.
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

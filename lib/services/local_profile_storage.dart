@@ -42,7 +42,14 @@ class LocalProfileStorage {
 
   Future<void> saveProfile(ChildProfile profile) async {
     const encoder = JsonEncoder.withIndent('  ');
-    await _storage.writeString('child_profile', encoder.convert(profile.toJson()));
+    await _storage.writeString(
+      'child_profile',
+      encoder.convert(profile.toJson()),
+    );
+  }
+
+  Future<void> clearProfile() async {
+    await _storage.deleteKey('child_profile');
   }
 
   Future<ChildProfile> activatePremium(String code) async {

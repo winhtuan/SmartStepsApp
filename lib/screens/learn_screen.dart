@@ -8,15 +8,14 @@ import '../services/local_profile_storage.dart';
 import '../services/situation_service.dart';
 import '../theme/duo_theme.dart';
 import '../widgets/duo_components.dart';
-import 'app_feedback_dialog.dart';
 
 class _LearnMascots {
   const _LearnMascots._();
 
-  static const happyWave = 'assets/images/mascot/mascot-cat-happy-wave.png';
-  static const speaking = 'assets/images/mascot/mascot-cat-speaking.png';
-  static const confident = 'assets/images/mascot/mascot-cat-confident.png';
-  static const sulking = 'assets/images/mascot/mascot-cat-sulking.png';
+  static const happyWave = 'assets/images/mascot/mascot-cat-happy-wave.webp';
+  static const speaking = 'assets/images/mascot/mascot-cat-speaking.webp';
+  static const confident = 'assets/images/mascot/mascot-cat-confident.webp';
+  static const sulking = 'assets/images/mascot/mascot-cat-sulking.webp';
 }
 
 class ParentReportPage extends StatefulWidget {
@@ -25,11 +24,13 @@ class ParentReportPage extends StatefulWidget {
     required this.situationService,
     required this.profileStorage,
     required this.isActive,
+    this.onStartLesson,
   });
 
   final SituationService situationService;
   final LocalProfileStorage profileStorage;
   final bool isActive;
+  final void Function(int situationId, int islandId)? onStartLesson;
 
   @override
   State<ParentReportPage> createState() => _ParentReportPageState();
@@ -41,6 +42,7 @@ class _ParentReportPageState extends State<ParentReportPage> {
   bool _isLoading = false;
   bool _hasLoaded = false;
   String? _error;
+  int _activeSubTabIndex = 0;
 
   @override
   void initState() {
@@ -187,23 +189,6 @@ class _ParentReportPageState extends State<ParentReportPage> {
     return entries;
   }
 
-  Future<void> _openFeedbackForm() async {
-    final submitted = await showAppFeedbackDialog(
-      context,
-      profileStorage: widget.profileStorage,
-      source: 'report',
-    );
-    if (!mounted || submitted != true) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã lưu đánh giá. Cảm ơn phản hồi của bạn.'),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final displayEntries = _entries.isEmpty
@@ -248,30 +233,52 @@ class _ParentReportPageState extends State<ParentReportPage> {
                                   profile: _profile,
                                   entries: displayEntries,
                                   focusEntry: focusEntry,
-                                  isLoading: _isLoading,
                                 ),
                                 const SizedBox(height: 18),
                                 if (_error != null) ...[
                                   _ReportNotice(message: _error!),
                                   const SizedBox(height: 16),
                                 ],
-                                DuoPrimaryButton(
-                                  label: 'Đánh giá app',
-                                  icon: Icons.rate_review_rounded,
-                                  onPressed: () {
-                                    unawaited(_openFeedbackForm());
+                                _ParentReportSegmentedControl(
+                                  selectedIndex: _activeSubTabIndex,
+                                  onChanged: (index) {
+                                    setState(() {
+                                      _activeSubTabIndex = index;
+                                    });
                                   },
                                 ),
-                                const SizedBox(height: 16),
-                                _MascotInsightCard(focusEntry: focusEntry),
-                                const SizedBox(height: 16),
-                                _SkillScoreListCard(entries: displayEntries),
-                                const SizedBox(height: 16),
-                                _ForgottenFocusCard(focusEntry: focusEntry),
-                                const SizedBox(height: 16),
-                                _NextLessonSuggestionCard(
-                                  focusEntry: focusEntry,
-                                  entries: displayEntries,
+                                const SizedBox(height: 18),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  transitionBuilder: (child, animation) {
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    );
+                                  },
+                                  child: _activeSubTabIndex == 0
+                                      ? Column(
+                                          key: const ValueKey('tab-progress'),
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            _MascotInsightCard(focusEntry: focusEntry),
+                                            const SizedBox(height: 16),
+                                            _SkillScoreListCard(entries: displayEntries),
+                                          ],
+                                        )
+                                      : Column(
+                                          key: const ValueKey('tab-practice'),
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            _ForgottenFocusCard(focusEntry: focusEntry),
+                                            const SizedBox(height: 16),
+                                            _NextLessonSuggestionCard(
+                                              focusEntry: focusEntry,
+                                              entries: displayEntries,
+                                              onStartLesson: widget.onStartLesson,
+                                            ),
+                                          ],
+                                        ),
                                 ),
                               ],
                             ),
@@ -292,13 +299,11 @@ class _LearnHeader extends StatelessWidget {
     required this.profile,
     required this.entries,
     required this.focusEntry,
-    required this.isLoading,
   });
 
   final ChildProfile? profile;
   final List<_ParentReportEntry> entries;
   final _ParentReportEntry focusEntry;
-  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -368,27 +373,16 @@ class _LearnHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Report của bé',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontSize: 27,
-                                  height: 1,
-                                ),
+                    Text(
+                      'Report của bé',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontSize: 27,
+                            height: 1,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        _HeaderContinueButton(
-                          isLoading: isLoading,
-                          onPressed: () => _showFeatureInDevelopment(context),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -458,50 +452,7 @@ class _LearnMetricChip extends StatelessWidget {
   }
 }
 
-class _HeaderContinueButton extends StatelessWidget {
-  const _HeaderContinueButton({
-    required this.isLoading,
-    required this.onPressed,
-  });
 
-  final bool isLoading;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 96,
-      height: 42,
-      child: FilledButton(
-        onPressed: isLoading ? null : onPressed,
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          backgroundColor: Colors.white,
-          disabledBackgroundColor: Colors.white.withValues(alpha: 0.72),
-          foregroundColor: DuoColors.textPrimary,
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
-          ),
-        ),
-        child: isLoading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: DuoColors.darkYellow,
-                ),
-              )
-            : const Text(
-                'Tiếp tục',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-      ),
-    );
-  }
-}
 
 class _ParentReportLoadingView extends StatelessWidget {
   const _ParentReportLoadingView();
@@ -521,7 +472,6 @@ class _ParentReportLoadingView extends StatelessWidget {
                   profile: null,
                   entries: _fallbackParentReportEntries,
                   focusEntry: _fallbackParentReportEntries.first,
-                  isLoading: true,
                 ),
                 const SizedBox(height: 18),
                 DuoCard(
@@ -653,6 +603,21 @@ class _MascotInsightCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                const SizedBox(height: 10),
+                _YellowReportRow(
+                  icon: Icons.help_rounded,
+                  text: focusEntry.realLifeQuestion,
+                ),
+                const SizedBox(height: 8),
+                _YellowReportRow(
+                  icon: Icons.lightbulb_rounded,
+                  text: focusEntry.practicePrompt,
+                ),
+                const SizedBox(height: 8),
+                _YellowReportRow(
+                  icon: Icons.health_and_safety_rounded,
+                  text: focusEntry.watchOut,
+                ),
               ],
             ),
           ),
@@ -718,7 +683,7 @@ class _SkillScoreRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: entry.points > 0
             ? const Color(0xFFF4FFE8)
-            : const Color(0xFFFFF8E1),
+            : DuoColors.background,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: DuoColors.border.withValues(alpha: 0.72)),
       ),
@@ -826,10 +791,12 @@ class _NextLessonSuggestionCard extends StatelessWidget {
   const _NextLessonSuggestionCard({
     required this.focusEntry,
     required this.entries,
+    required this.onStartLesson,
   });
 
   final _ParentReportEntry focusEntry;
   final List<_ParentReportEntry> entries;
+  final void Function(int situationId, int islandId)? onStartLesson;
 
   @override
   Widget build(BuildContext context) {
@@ -901,7 +868,9 @@ class _NextLessonSuggestionCard extends StatelessWidget {
                       child: DuoPrimaryButton(
                         label: 'Bắt đầu ngay',
                         icon: Icons.play_arrow_rounded,
-                        onPressed: () => _showFeatureInDevelopment(context),
+                        onPressed: onStartLesson != null
+                            ? () => onStartLesson!(nextEntry.situationId, nextEntry.islandId)
+                            : null,
                         backgroundColor: DuoColors.success,
                       ),
                     ),
@@ -986,7 +955,7 @@ class _ReportNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF4D6),
+        color: DuoColors.softYellow,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: DuoColors.border, width: 2),
       ),
@@ -1002,12 +971,6 @@ class _ReportNotice extends StatelessWidget {
       ),
     );
   }
-}
-
-void _showFeatureInDevelopment(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Tính năng đang được phát triển.')),
-  );
 }
 
 class _ParentReportEntry {
@@ -1222,21 +1185,6 @@ const _fallbackParentReportEntries = [
     watchOut: 'Giữ pin nút, nam châm và dị vật nhỏ xa tầm tay của bé.',
   ),
   _ParentReportEntry(
-    situationId: 2,
-    islandId: 1,
-    situationOrder: 2,
-    islandName: 'An toàn cá nhân',
-    lessonTitle: 'Bài 2: Bàn tay kỳ diệu và các cái lỗ',
-    skillName: 'An toàn điện',
-    skillDescription:
-        'Nhận biết ổ điện nguy hiểm và không chọc vật lạ vào ổ cắm.',
-    realLifeQuestion:
-        'Ổ cắm điện có phải đồ chơi không? Con nên đứng gần hay tránh xa?',
-    practicePrompt:
-        'Đi một vòng quanh nhà và chỉ cho bé các vị trí ổ điện cần tránh.',
-    watchOut: 'Ưu tiên dùng nắp đậy ổ điện ở các vị trí thấp trong nhà.',
-  ),
-  _ParentReportEntry(
     situationId: 3,
     islandId: 2,
     situationOrder: 1,
@@ -1251,3 +1199,106 @@ const _fallbackParentReportEntries = [
     watchOut: 'Bé còn dễ nhầm giữa chờ đèn xanh và tự ý chạy qua đường.',
   ),
 ];
+
+class _ParentReportSegmentedControl extends StatelessWidget {
+  const _ParentReportSegmentedControl({
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SegmentButton(
+              label: 'Kết quả học tập',
+              icon: Icons.bar_chart_rounded,
+              isSelected: selectedIndex == 0,
+              onTap: () => onChanged(0),
+            ),
+          ),
+          Expanded(
+            child: _SegmentButton(
+              label: 'Luyện tập tại nhà',
+              icon: Icons.home_repair_service_rounded,
+              isSelected: selectedIndex == 1,
+              onTap: () => onChanged(1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentButton extends StatelessWidget {
+  const _SegmentButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x1A000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? DuoColors.success : DuoColors.textSecondary,
+              size: 20,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isSelected ? DuoColors.textPrimary : DuoColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
