@@ -780,6 +780,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
       unawaited(_recordLessonCompletion());
     }
     _audioController?.playSuccess();
+    _audioController?.playCelebration(maxDuration: const Duration(seconds: 3));
   }
 
   Future<void> _recordLessonCompletion() async {
@@ -992,6 +993,16 @@ class _TemplateObserveItem {
   final String label;
   final IconData icon;
   final Alignment alignment;
+}
+
+class _TemplateObserveSceneConfig {
+  const _TemplateObserveSceneConfig({
+    required this.backgroundAsset,
+    required this.items,
+  });
+
+  final String backgroundAsset;
+  final List<_TemplateObserveItem> items;
 }
 
 class _TemplateObserveScreen extends StatefulWidget {
@@ -2231,7 +2242,73 @@ class _TemplateObserveActions extends StatelessWidget {
   }
 }
 
+_TemplateObserveSceneConfig _templateObserveSceneConfigFor(
+  SafetyLesson lesson,
+) {
+  if (lesson.situationId == 201) {
+    return const _TemplateObserveSceneConfig(
+      backgroundAsset: 'assets/images/flashCard/Safety_stranger/step-one.webp',
+      items: [
+        _TemplateObserveItem(
+          id: 'gate',
+          label: 'Cổng trường',
+          icon: Icons.location_on_rounded,
+          alignment: Alignment(-0.16, -0.56),
+        ),
+        _TemplateObserveItem(
+          id: 'safe-adult',
+          label: 'Cô giáo',
+          icon: Icons.school_rounded,
+          alignment: Alignment(-0.08, 0.15),
+        ),
+        _TemplateObserveItem(
+          id: 'stranger',
+          label: 'Người lạ',
+          icon: Icons.person_search_rounded,
+          alignment: Alignment(0.50, 0.15),
+        ),
+      ],
+    );
+  }
+
+  if (lesson.situationId == 301) {
+    return const _TemplateObserveSceneConfig(
+      backgroundAsset: 'assets/images/flashCard/Crossroad/step-one.webp',
+      items: [
+        _TemplateObserveItem(
+          id: 'traffic-light',
+          label: 'Đèn giao thông',
+          icon: Icons.traffic_rounded,
+          alignment: Alignment(-0.79, -0.58),
+        ),
+        _TemplateObserveItem(
+          id: 'car',
+          label: 'Xe ô tô',
+          icon: Icons.directions_car_rounded,
+          alignment: Alignment(-0.20, 0.13),
+        ),
+        _TemplateObserveItem(
+          id: 'waiting-child',
+          label: 'Bé đứng chờ',
+          icon: Icons.accessibility_new_rounded,
+          alignment: Alignment(0.53, 0.20),
+        ),
+      ],
+    );
+  }
+  return _TemplateObserveSceneConfig(
+    backgroundAsset: _defaultTemplateSceneBackgroundFor(lesson),
+    items: _defaultTemplateObserveItemsFor(lesson),
+  );
+}
+
 List<_TemplateObserveItem> _templateObserveItemsFor(SafetyLesson lesson) {
+  return _templateObserveSceneConfigFor(lesson).items;
+}
+
+List<_TemplateObserveItem> _defaultTemplateObserveItemsFor(
+  SafetyLesson lesson,
+) {
   final text = '${lesson.title} ${lesson.mission} ${lesson.topic}'
       .toLowerCase();
 
@@ -2332,8 +2409,12 @@ String _observePromptFor(SafetyLesson lesson) {
 }
 
 String _templateSceneBackgroundFor(SafetyLesson lesson) {
+  return _templateObserveSceneConfigFor(lesson).backgroundAsset;
+}
+
+String _defaultTemplateSceneBackgroundFor(SafetyLesson lesson) {
   return switch (lesson.islandId) {
-    2 => 'assets/images/flashCard/Crossroad/step-one.webp',
+    2 => LessonAssets.island2Background,
     3 => 'assets/images/flashCard/Crossroad/step-one.webp',
     _ => LessonAssets.island1Background,
   };
@@ -5831,6 +5912,7 @@ class _LessonRewardCelebration extends StatelessWidget {
               ),
             ),
             const Positioned.fill(child: _RewardFloatingDecorations()),
+            const Positioned.fill(child: _RewardVfxLayer()),
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -6340,6 +6422,133 @@ class _RewardActionButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _RewardVfxLayer extends StatefulWidget {
+  const _RewardVfxLayer();
+
+  @override
+  State<_RewardVfxLayer> createState() => _RewardVfxLayerState();
+}
+
+class _RewardVfxLayerState extends State<_RewardVfxLayer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final progress = _controller.value;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              CustomPaint(painter: _CelebrationRaysPainter(progress)),
+              CustomPaint(painter: _CenterBurstPainter(progress)),
+              CustomPaint(painter: _SideFireworksPainter(progress)),
+              CustomPaint(painter: _RewardConfettiPainter(progress)),
+              const _RewardGlowWash(),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _RewardGlowWash extends StatelessWidget {
+  const _RewardGlowWash();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(0, -0.18),
+          radius: 0.82,
+          colors: [
+            Colors.white.withValues(alpha: 0.22),
+            GameColors.banana.withValues(alpha: 0.10),
+            Colors.transparent,
+          ],
+          stops: const [0, 0.44, 1],
+        ),
+      ),
+    );
+  }
+}
+
+class _RewardConfettiPainter extends CustomPainter {
+  const _RewardConfettiPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final colors = <Color>[
+      GameColors.banana,
+      GameColors.safe,
+      GameColors.coral,
+      const Color(0xFF3C7DD9),
+      GameColors.mint,
+    ];
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (var i = 0; i < 44; i++) {
+      final seed = i * 37.0;
+      final xBase = ((seed * 19) % 100) / 100;
+      final speed = 0.62 + (i % 7) * 0.055;
+      final phase = (progress * speed + (i % 11) / 11) % 1.0;
+      final drift = math.sin((phase * math.pi * 2) + i) * (12 + (i % 5) * 4);
+      final x = xBase * size.width + drift;
+      final y = phase * (size.height + 96) - 48;
+      final width = 5.0 + (i % 4) * 2.0;
+      final height = 9.0 + (i % 5) * 2.2;
+      final rotation = progress * math.pi * (1.6 + (i % 6) * 0.22) + i;
+      final opacity = phase < 0.08
+          ? phase / 0.08
+          : phase > 0.86
+          ? (1 - phase) / 0.14
+          : 1.0;
+      paint.color = colors[i % colors.length].withValues(alpha: 0.68 * opacity);
+
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(rotation);
+      final rect = Rect.fromCenter(
+        center: Offset.zero,
+        width: width,
+        height: height,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RewardConfettiPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
 
