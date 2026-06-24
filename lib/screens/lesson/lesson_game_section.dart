@@ -610,7 +610,9 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   }
 
   bool get _isVideoPhase {
-    return _phase == LessonPhase.introVideo || _phase == LessonPhase.wrongVideo;
+    return _phase == LessonPhase.introVideo ||
+        _phase == LessonPhase.correctVideo ||
+        _phase == LessonPhase.wrongVideo;
   }
 
   bool get _isResultFocusPhase {
@@ -698,18 +700,23 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
   void _completeVideo() {
     var shouldPlayWarning = false;
+    var shouldShowReward = false;
 
     setState(() {
       switch (_phase) {
         case LessonPhase.introVideo:
           _phase = LessonPhase.inspectObject;
+        case LessonPhase.correctVideo:
+          _phase = _usesTemplateLesson
+              ? LessonPhase.miniChallenge
+              : LessonPhase.parent;
+          shouldShowReward = !_usesTemplateLesson;
         case LessonPhase.wrongVideo:
           _phase = LessonPhase.wrong;
           shouldPlayWarning = true;
         case LessonPhase.opening:
         case LessonPhase.inspectObject:
         case LessonPhase.miniChallenge:
-        case LessonPhase.correctVideo:
         case LessonPhase.wrong:
         case LessonPhase.parent:
           break;
@@ -718,6 +725,9 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
 
     if (shouldPlayWarning) {
       _audioController?.playWarning();
+    }
+    if (shouldShowReward) {
+      _showReward();
     }
   }
 
@@ -743,15 +753,9 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     setState(() {
       _selectedChoiceId = choiceId;
       _phase = selectedChoice.isCorrect
-          ? (_usesTemplateLesson
-                ? LessonPhase.miniChallenge
-                : LessonPhase.parent)
+          ? LessonPhase.correctVideo
           : LessonPhase.wrongVideo;
     });
-
-    if (selectedChoice.isCorrect && !_usesTemplateLesson) {
-      _showReward();
-    }
   }
 
   void _completeMiniChallenge() {
