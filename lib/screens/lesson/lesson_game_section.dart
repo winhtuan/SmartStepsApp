@@ -4,6 +4,7 @@ enum LessonPhase {
   introVideo,
   opening,
   inspectObject,
+  miniChallenge,
   correctVideo,
   wrongVideo,
   wrong,
@@ -37,6 +38,7 @@ class LessonAssets {
   static const landIsland2 = 'assets/images/land/bg-land-2.webp';
   static const landIsland3 = 'assets/images/land/bg-land-3.webp';
   static const rewardBackground = 'assets/images/land/reward.webp';
+  static const falseBackground = 'assets/images/land/false.webp';
   static const island1Background = 'assets/images/Insland1_Background.webp';
   static const island2Background = 'assets/images/Insland2_Background.webp';
   static const island3Background = 'assets/images/Insland3_Background.webp';
@@ -499,8 +501,8 @@ Future<bool> _lessonAssetExists(String asset) async {
     return false;
   }
 
-  final manifestPaths =
-      _lessonAssetManifestPaths ??= AssetManifest.loadFromAssetBundle(
+  final manifestPaths = _lessonAssetManifestPaths ??=
+      AssetManifest.loadFromAssetBundle(
         rootBundle,
       ).then((manifest) => manifest.listAssets().toSet());
   return (await manifestPaths).contains(normalizedAsset);
@@ -650,10 +652,14 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
   Future<void> _enterLessonViewingMode() async {
     try {
       if (_usesTemplateLesson) {
-        await SystemChrome.setPreferredOrientations(_outsidePortraitOrientations);
+        await SystemChrome.setPreferredOrientations(
+          _outsidePortraitOrientations,
+        );
         await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       } else {
-        await SystemChrome.setPreferredOrientations(_lessonLandscapeOrientations);
+        await SystemChrome.setPreferredOrientations(
+          _lessonLandscapeOrientations,
+        );
         await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       }
     } catch (_) {
@@ -702,6 +708,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
           shouldPlayWarning = true;
         case LessonPhase.opening:
         case LessonPhase.inspectObject:
+        case LessonPhase.miniChallenge:
         case LessonPhase.correctVideo:
         case LessonPhase.wrong:
         case LessonPhase.parent:
@@ -736,13 +743,22 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
     setState(() {
       _selectedChoiceId = choiceId;
       _phase = selectedChoice.isCorrect
-          ? LessonPhase.parent
+          ? (_usesTemplateLesson
+                ? LessonPhase.miniChallenge
+                : LessonPhase.parent)
           : LessonPhase.wrongVideo;
     });
 
-    if (selectedChoice.isCorrect) {
+    if (selectedChoice.isCorrect && !_usesTemplateLesson) {
       _showReward();
     }
+  }
+
+  void _completeMiniChallenge() {
+    setState(() {
+      _phase = LessonPhase.parent;
+    });
+    _showReward();
   }
 
   void _retryChoice() {
@@ -813,6 +829,14 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
       );
     }
 
+    if (_usesTemplateLesson && _phase == LessonPhase.miniChallenge) {
+      return _TemplateMiniChallengeScreen(
+        lesson: lesson,
+        onBack: _exitLesson,
+        onContinue: _completeMiniChallenge,
+      );
+    }
+
     if (_isVideoPhase) {
       return Scaffold(
         backgroundColor: Colors.black,
@@ -880,8 +904,10 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                         _WrongFeedbackOverlay(
                           title: lesson.wrongTitle,
                           body: lesson.wrongExplanation,
-                          actionLabel: 'Thử lại lần nữa',
+                          actionLabel: 'Thử lại',
                           onAction: _retryChoice,
+                          onRestart: _retryChoice,
+                          onClose: _exitLesson,
                         ),
                       if (_phase == LessonPhase.inspectObject)
                         _QuestionOverlay(
@@ -897,7 +923,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
                           child: _LessonExitButton(onPressed: _exitLesson),
                         ),
 
-                      if (_isResultFocusPhase)
+                      if (_isResultFocusPhase && _phase != LessonPhase.wrong)
                         _CompactLessonControls(
                           onRestart: _restartLesson,
                           onExit: _exitLesson,
@@ -938,6 +964,7 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
         );
       case LessonPhase.opening:
       case LessonPhase.inspectObject:
+      case LessonPhase.miniChallenge:
       case LessonPhase.wrong:
       case LessonPhase.parent:
         return _SceneStage(
@@ -976,6 +1003,631 @@ class _TemplateObserveScreen extends StatefulWidget {
 
   @override
   State<_TemplateObserveScreen> createState() => _TemplateObserveScreenState();
+}
+
+class _MiniChallengeStep {
+  const _MiniChallengeStep({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.background,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final Color color;
+  final Color background;
+}
+
+class _TemplateMiniChallengeScreen extends StatefulWidget {
+  const _TemplateMiniChallengeScreen({
+    required this.lesson,
+    required this.onBack,
+    required this.onContinue,
+  });
+
+  final SafetyLesson lesson;
+  final VoidCallback onBack;
+  final VoidCallback onContinue;
+
+  @override
+  State<_TemplateMiniChallengeScreen> createState() =>
+      _TemplateMiniChallengeScreenState();
+}
+
+class _TemplateMiniChallengeScreenState
+    extends State<_TemplateMiniChallengeScreen> {
+  late final List<_MiniChallengeStep> _steps = _miniChallengeStepsFor(
+    widget.lesson,
+  );
+  late final List<_MiniChallengeStep> _options = _miniChallengeOptionsFor(
+    _steps,
+  );
+  final List<String> _selectedIds = <String>[];
+  bool _hasChecked = false;
+  bool _showHint = false;
+
+  bool get _canCheck => _selectedIds.length == _steps.length;
+
+  bool get _isCorrect {
+    if (!_canCheck) {
+      return false;
+    }
+    for (var index = 0; index < _steps.length; index += 1) {
+      if (_selectedIds[index] != _steps[index].id) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _selectStep(_MiniChallengeStep step) {
+    if (_selectedIds.contains(step.id) ||
+        _selectedIds.length >= _steps.length) {
+      return;
+    }
+    setState(() {
+      _selectedIds.add(step.id);
+      _hasChecked = false;
+      _showHint = false;
+    });
+  }
+
+  void _removeStepAt(int index) {
+    if (index < 0 || index >= _selectedIds.length) {
+      return;
+    }
+    setState(() {
+      _selectedIds.removeAt(index);
+      _hasChecked = false;
+    });
+  }
+
+  void _showHintMessage() {
+    setState(() {
+      _showHint = true;
+    });
+  }
+
+  void _checkAnswer() {
+    if (!_canCheck) {
+      _showHintMessage();
+      return;
+    }
+    setState(() {
+      _hasChecked = true;
+      _showHint = false;
+    });
+    if (_isCorrect) {
+      unawaited(HapticFeedback.lightImpact());
+    } else {
+      unawaited(HapticFeedback.mediumImpact());
+    }
+  }
+
+  void _tryAgain() {
+    setState(() {
+      _selectedIds.clear();
+      _hasChecked = false;
+      _showHint = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final feedbackText = _feedbackText;
+    final feedbackColor = _hasChecked && !_isCorrect
+        ? const Color(0xFF8B5000)
+        : GameColors.ink;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F4EA),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 380;
+            final horizontalPadding = compact ? 18.0 : 24.0;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _TemplateObserveHeader(
+                  title: widget.lesson.title,
+                  onBack: widget.onBack,
+                  progressLabel: '3/5',
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      18,
+                      horizontalPadding,
+                      16,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Sắp xếp 3 bước an toàn',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: GameColors.ink,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            height: 1.15,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _MiniChallengeOrderPanel(
+                          steps: _steps,
+                          selectedIds: _selectedIds,
+                          onRemoveAt: _removeStepAt,
+                        ),
+                        const SizedBox(height: 18),
+                        const Text(
+                          'Chọn bước',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: GameColors.ink,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        for (final step in _options) ...[
+                          _MiniChallengeStepButton(
+                            step: step,
+                            isSelected: _selectedIds.contains(step.id),
+                            onPressed: () => _selectStep(step),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        _MiniChallengeFeedback(
+                          text: feedbackText,
+                          color: feedbackColor,
+                          showRetry: _hasChecked && !_isCorrect,
+                          onRetry: _tryAgain,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _MiniChallengeActions(
+                  canCheck: _canCheck,
+                  isCorrect: _hasChecked && _isCorrect,
+                  onHint: _showHintMessage,
+                  onCheck: _checkAnswer,
+                  onContinue: widget.onContinue,
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String get _feedbackText {
+    if (_showHint) {
+      return 'Gợi ý: bắt đầu bằng việc dừng lại và nhìn cho kỹ.';
+    }
+    if (!_hasChecked) {
+      return _selectedIds.isEmpty
+          ? 'Con chọn bước đầu tiên nhé.'
+          : 'Tốt rồi, chọn tiếp bước sau.';
+    }
+    if (_isCorrect) {
+      return 'Đúng thứ tự rồi. Con đã sẵn sàng nhận thưởng.';
+    }
+    return 'Gần đúng rồi. Mình thử sắp xếp lại nhé.';
+  }
+}
+
+class _MiniChallengeOrderPanel extends StatelessWidget {
+  const _MiniChallengeOrderPanel({
+    required this.steps,
+    required this.selectedIds,
+    required this.onRemoveAt,
+  });
+
+  final List<_MiniChallengeStep> steps;
+  final List<String> selectedIds;
+  final ValueChanged<int> onRemoveAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE4E3DB), width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14735C00),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Thứ tự của con',
+            style: TextStyle(
+              color: GameColors.muted,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: List.generate(steps.length, (index) {
+              final selectedId = index < selectedIds.length
+                  ? selectedIds[index]
+                  : null;
+              final step = selectedId == null
+                  ? null
+                  : steps.firstWhere((item) => item.id == selectedId);
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: index == steps.length - 1 ? 0 : 8,
+                  ),
+                  child: _MiniChallengeSlot(
+                    index: index,
+                    step: step,
+                    onTap: step == null ? null : () => onRemoveAt(index),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniChallengeSlot extends StatelessWidget {
+  const _MiniChallengeSlot({
+    required this.index,
+    required this.step,
+    required this.onTap,
+  });
+
+  final int index;
+  final _MiniChallengeStep? step;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedStep = step;
+    return Tooltip(
+      message: selectedStep == null ? 'Ô ${index + 1}' : 'Bấm để bỏ chọn',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: 76,
+          decoration: BoxDecoration(
+            color: selectedStep?.background ?? const Color(0xFFF0EEE6),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color:
+                  selectedStep?.color.withValues(alpha: 0.42) ??
+                  const Color(0xFFD0C6AE),
+              width: 2,
+            ),
+          ),
+          child: selectedStep == null
+              ? Center(
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                      color: GameColors.muted,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      selectedStep.icon,
+                      color: selectedStep.color,
+                      size: 24,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      selectedStep.label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selectedStep.color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniChallengeStepButton extends StatelessWidget {
+  const _MiniChallengeStepButton({
+    required this.step,
+    required this.isSelected,
+    required this.onPressed,
+  });
+
+  final _MiniChallengeStep step;
+  final bool isSelected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SmartStepsPressEffect(
+      enabled: !isSelected,
+      child: FilledButton(
+        onPressed: isSelected ? null : onPressed,
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(58),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          backgroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFF0EEE6),
+          foregroundColor: GameColors.ink,
+          disabledForegroundColor: GameColors.muted,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(
+              color: isSelected
+                  ? const Color(0xFFD0C6AE)
+                  : step.color.withValues(alpha: 0.28),
+              width: 2,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: step.background,
+                borderRadius: BorderRadius.circular(21),
+              ),
+              child: Icon(step.icon, color: step.color, size: 24),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Text(
+                step.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle_rounded, color: GameColors.safe),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniChallengeFeedback extends StatelessWidget {
+  const _MiniChallengeFeedback({
+    required this.text,
+    required this.color,
+    required this.showRetry,
+    required this.onRetry,
+  });
+
+  final String text;
+  final Color color;
+  final bool showRetry;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE4E3DB)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.tips_and_updates_rounded, color: color, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                height: 1.18,
+              ),
+            ),
+          ),
+          if (showRetry) ...[
+            const SizedBox(width: 8),
+            TextButton(onPressed: onRetry, child: const Text('Làm lại')),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniChallengeActions extends StatelessWidget {
+  const _MiniChallengeActions({
+    required this.canCheck,
+    required this.isCorrect,
+    required this.onHint,
+    required this.onCheck,
+    required this.onContinue,
+  });
+
+  final bool canCheck;
+  final bool isCorrect;
+  final VoidCallback onHint;
+  final VoidCallback onCheck;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0EEE6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1A735C00),
+            blurRadius: 20,
+            offset: Offset(0, -6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          SmartStepsPressEffect(
+            child: OutlinedButton.icon(
+              onPressed: onHint,
+              icon: const Icon(Icons.lightbulb_rounded, size: 20),
+              label: const Text('Gợi ý'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(112, 50),
+                foregroundColor: GameColors.ink,
+                side: BorderSide(
+                  color: GameColors.banana.withValues(alpha: 0.45),
+                  width: 2,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DuoPrimaryButton(
+              label: isCorrect ? 'Nhận thưởng' : 'Kiểm tra',
+              onPressed: isCorrect ? onContinue : (canCheck ? onCheck : null),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
+  final text = '${lesson.title} ${lesson.mission} ${lesson.topic}'
+      .toLowerCase();
+  if (text.contains('người lạ')) {
+    return const [
+      _MiniChallengeStep(
+        id: 'step-back',
+        label: 'Lùi lại',
+        icon: Icons.keyboard_backspace_rounded,
+        color: Color(0xFF8B5000),
+        background: Color(0xFFFFF0D9),
+      ),
+      _MiniChallengeStep(
+        id: 'say-no',
+        label: 'Nói không',
+        icon: Icons.record_voice_over_rounded,
+        color: Color(0xFF93000A),
+        background: Color(0xFFFFDAD6),
+      ),
+      _MiniChallengeStep(
+        id: 'tell-teacher',
+        label: 'Báo cô giáo',
+        icon: Icons.school_rounded,
+        color: Color(0xFF006E1C),
+        background: Color(0xFFE1F8DD),
+      ),
+    ];
+  }
+
+  if (text.contains('qua đường') || text.contains('giao thông')) {
+    return const [
+      _MiniChallengeStep(
+        id: 'stop',
+        label: 'Dừng lại',
+        icon: Icons.pan_tool_alt_rounded,
+        color: Color(0xFF93000A),
+        background: Color(0xFFFFDAD6),
+      ),
+      _MiniChallengeStep(
+        id: 'hold-hand',
+        label: 'Nắm tay người lớn',
+        icon: Icons.handshake_rounded,
+        color: Color(0xFF8B5000),
+        background: Color(0xFFFFF0D9),
+      ),
+      _MiniChallengeStep(
+        id: 'wait-safe',
+        label: 'Chờ an toàn rồi đi',
+        icon: Icons.traffic_rounded,
+        color: Color(0xFF006E1C),
+        background: Color(0xFFE1F8DD),
+      ),
+    ];
+  }
+
+  return const [
+    _MiniChallengeStep(
+      id: 'pause',
+      label: 'Dừng lại',
+      icon: Icons.pause_circle_filled_rounded,
+      color: Color(0xFF93000A),
+      background: Color(0xFFFFDAD6),
+    ),
+    _MiniChallengeStep(
+      id: 'safe-choice',
+      label: 'Chọn cách an toàn',
+      icon: Icons.verified_rounded,
+      color: Color(0xFF8B5000),
+      background: Color(0xFFFFF0D9),
+    ),
+    _MiniChallengeStep(
+      id: 'ask-adult',
+      label: 'Tìm người lớn',
+      icon: Icons.supervisor_account_rounded,
+      color: Color(0xFF006E1C),
+      background: Color(0xFFE1F8DD),
+    ),
+  ];
+}
+
+List<_MiniChallengeStep> _miniChallengeOptionsFor(
+  List<_MiniChallengeStep> steps,
+) {
+  if (steps.length < 3) {
+    return steps;
+  }
+  return [steps[1], steps[2], steps[0]];
 }
 
 class _TemplateObserveScreenState extends State<_TemplateObserveScreen> {
@@ -1029,9 +1681,7 @@ class _TemplateObserveScreenState extends State<_TemplateObserveScreen> {
                     horizontalPadding,
                     0,
                   ),
-                  child: _TemplatePromptPill(
-                    text: _observePromptFor(lesson),
-                  ),
+                  child: _TemplatePromptPill(text: _observePromptFor(lesson)),
                 ),
                 Expanded(
                   child: Padding(
@@ -1054,10 +1704,7 @@ class _TemplateObserveScreenState extends State<_TemplateObserveScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        _TemplateFoundItems(
-                          items: _items,
-                          foundIds: _foundIds,
-                        ),
+                        _TemplateFoundItems(items: _items, foundIds: _foundIds),
                         const SizedBox(height: 6),
                         Text(
                           remainingCount == 0
@@ -1089,10 +1736,15 @@ class _TemplateObserveScreenState extends State<_TemplateObserveScreen> {
 }
 
 class _TemplateObserveHeader extends StatelessWidget {
-  const _TemplateObserveHeader({required this.title, required this.onBack});
+  const _TemplateObserveHeader({
+    required this.title,
+    required this.onBack,
+    this.progressLabel = '1/5',
+  });
 
   final String title;
   final VoidCallback onBack;
+  final String progressLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1137,9 +1789,9 @@ class _TemplateObserveHeader extends StatelessWidget {
               color: const Color(0xFFE4E3DB),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Text(
-              '1/5',
-              style: TextStyle(
+            child: Text(
+              progressLabel,
+              style: const TextStyle(
                 color: GameColors.muted,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
@@ -1270,7 +1922,11 @@ class _TemplateObserveScene extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(background, fit: BoxFit.cover, alignment: Alignment.center),
+          Image.asset(
+            background,
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+          ),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1350,11 +2006,9 @@ class _TemplateHotspotState extends State<_TemplateHotspot>
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
-              final pulse = 1 + math.sin(_controller.value * math.pi * 2) * 0.05;
-              return Transform.scale(
-                scale: found ? 1 : pulse,
-                child: child,
-              );
+              final pulse =
+                  1 + math.sin(_controller.value * math.pi * 2) * 0.05;
+              return Transform.scale(scale: found ? 1 : pulse, child: child);
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1371,7 +2025,9 @@ class _TemplateHotspotState extends State<_TemplateHotspot>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withValues(alpha: widget.isHinted ? 0.38 : 0.20),
+                        color: color.withValues(
+                          alpha: widget.isHinted ? 0.38 : 0.20,
+                        ),
                         blurRadius: widget.isHinted ? 22 : 14,
                         spreadRadius: widget.isHinted ? 5 : 1,
                       ),
@@ -1386,7 +2042,10 @@ class _TemplateHotspotState extends State<_TemplateHotspot>
                 if (found) ...[
                   const SizedBox(height: 7),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: GameColors.safe,
                       borderRadius: BorderRadius.circular(999),
@@ -1481,7 +2140,9 @@ class _TemplateFoundChip extends StatelessWidget {
         color: isFound ? const Color(0xFFE5FFE3) : const Color(0xFFE4E3DB),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: isFound ? GameColors.safe.withValues(alpha: 0.28) : const Color(0xFFD0C6AE),
+          color: isFound
+              ? GameColors.safe.withValues(alpha: 0.28)
+              : const Color(0xFFD0C6AE),
         ),
       ),
       child: Row(
@@ -1549,7 +2210,10 @@ class _TemplateObserveActions extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(42),
                 foregroundColor: GameColors.ink,
-                side: BorderSide(color: GameColors.banana.withValues(alpha: 0.45), width: 2),
+                side: BorderSide(
+                  color: GameColors.banana.withValues(alpha: 0.45),
+                  width: 2,
+                ),
                 textStyle: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
@@ -1564,7 +2228,8 @@ class _TemplateObserveActions extends StatelessWidget {
 }
 
 List<_TemplateObserveItem> _templateObserveItemsFor(SafetyLesson lesson) {
-  final text = '${lesson.title} ${lesson.mission} ${lesson.topic}'.toLowerCase();
+  final text = '${lesson.title} ${lesson.mission} ${lesson.topic}'
+      .toLowerCase();
 
   if (text.contains('người lạ')) {
     return const [
@@ -1669,6 +2334,7 @@ String _templateSceneBackgroundFor(SafetyLesson lesson) {
     _ => LessonAssets.island1Background,
   };
 }
+
 class _LessonExitButton extends StatelessWidget {
   const _LessonExitButton({required this.onPressed});
 
@@ -1893,7 +2559,7 @@ class _StoryClipStageState extends State<_StoryClipStage> {
           setState(() {
             _hasVideoLoadFailed = true;
             _videoLoadErrorMessage =
-                'Video c?a b?i h?c ch?a c? trong assets. B?m b? qua ?? ti?p t?c.';
+                'Video của bài học chưa có trong assets. Bấm bỏ qua để tiếp tục.';
           });
         }
         return;
@@ -1949,7 +2615,7 @@ class _StoryClipStageState extends State<_StoryClipStage> {
         setState(() {
           _hasVideoLoadFailed = true;
           _videoLoadErrorMessage =
-              'Video ch?a ph?t ???c tr?n thi?t b? n?y. B?m b? qua ?? ti?p t?c.';
+              'Video chưa phát được trên thiết bị này. Bấm bỏ qua để tiếp tục.';
         });
       }
     }
@@ -2273,6 +2939,7 @@ class _SceneStage extends StatelessWidget {
       case LessonPhase.wrongVideo:
         return LessonAssets.childChoking;
       case LessonPhase.correctVideo:
+      case LessonPhase.miniChallenge:
       case LessonPhase.parent:
         return LessonAssets.childHappy;
       case LessonPhase.introVideo:
@@ -4052,46 +4719,51 @@ class _CelebrationRaysPainter extends CustomPainter {
   }
 }
 
-
 class _WrongFeedbackOverlay extends StatefulWidget {
   const _WrongFeedbackOverlay({
     required this.title,
     required this.body,
     required this.actionLabel,
     required this.onAction,
+    required this.onRestart,
+    required this.onClose,
   });
 
   final String title;
   final String body;
   final String actionLabel;
   final VoidCallback onAction;
+  final VoidCallback onRestart;
+  final VoidCallback onClose;
 
   @override
   State<_WrongFeedbackOverlay> createState() => _WrongFeedbackOverlayState();
 }
 
-class _WrongFeedbackOverlayState extends State<_WrongFeedbackOverlay> {
-  bool _isEffectFinished = false;
-  bool _showRetryButton = false;
+class _WrongFeedbackOverlayState extends State<_WrongFeedbackOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _showHint = false;
 
-  void _markEffectFinished() {
-    if (!mounted || _isEffectFinished) {
-      return;
-    }
-
-    setState(() {
-      _isEffectFinished = true;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1700),
+    )..repeat(reverse: true);
   }
 
-  void _handleTap() {
-    if (!_isEffectFinished || _showRetryButton) {
-      return;
-    }
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
+  void _showHintMessage() {
     unawaited(HapticFeedback.selectionClick());
     setState(() {
-      _showRetryButton = true;
+      _showHint = true;
     });
   }
 
@@ -4100,23 +4772,447 @@ class _WrongFeedbackOverlayState extends State<_WrongFeedbackOverlay> {
     return Positioned.fill(
       child: Semantics(
         liveRegion: true,
-        label: 'Chưa an toàn. ${widget.body}',
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _handleTap,
+        label: 'Sai rồi. ${widget.body}',
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const _WrongFeedbackBackdrop(),
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 390;
+                  final cardMaxWidth = compact ? constraints.maxWidth : 430.0;
+
+                  return Column(
+                    children: [
+                      _WrongFeedbackTopBar(
+                        onRestart: widget.onRestart,
+                        onClose: widget.onClose,
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.fromLTRB(
+                              compact ? 18 : 24,
+                              88,
+                              compact ? 18 : 24,
+                              24,
+                            ),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: cardMaxWidth,
+                              ),
+                              child: _WrongFeedbackCard(
+                                animation: _controller,
+                                label: 'Sai rồi',
+                                title: widget.title,
+                                body: widget.body,
+                                actionLabel: widget.actionLabel,
+                                showHint: _showHint,
+                                onAction: widget.onAction,
+                                onHint: _showHintMessage,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WrongFeedbackBackdrop extends StatelessWidget {
+  const _WrongFeedbackBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFBF9F1).withValues(alpha: 0.70),
+          ),
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              _WrongAnswerScrim(onFinished: _markEffectFinished),
-              _WrongAnswerAlert(
-                label: 'Sai rồi',
-                title: widget.title,
-                body: widget.body,
-                actionLabel: widget.actionLabel,
-                showRetryButton: _showRetryButton,
-                showTapPrompt: _isEffectFinished && !_showRetryButton,
-                onAction: widget.onAction,
+              Image.asset(
+                LessonAssets.falseBackground,
+                fit: BoxFit.cover,
+                opacity: const AlwaysStoppedAnimation(0.72),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.38),
+                      const Color(0xFFFFDAD6).withValues(alpha: 0.30),
+                      const Color(0xFFFBF9F1).withValues(alpha: 0.62),
+                    ],
+                  ),
+                ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WrongFeedbackTopBar extends StatelessWidget {
+  const _WrongFeedbackTopBar({required this.onRestart, required this.onClose});
+
+  final VoidCallback onRestart;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+      child: Row(
+        children: [
+          Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x26735C00),
+                  blurRadius: 22,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.pets_rounded,
+                  color: GameColors.danger,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Row(
+                  children: List.generate(5, (index) {
+                    final active = index < 2;
+                    return Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(right: 5),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? GameColors.danger
+                            : const Color(0xFFE4E3DB),
+                        shape: BoxShape.circle,
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  '2/3',
+                  style: TextStyle(
+                    color: GameColors.muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          _WrongTopIconButton(
+            icon: Icons.refresh_rounded,
+            label: 'Làm lại',
+            onPressed: onRestart,
+          ),
+          const SizedBox(width: 8),
+          _WrongTopIconButton(
+            icon: Icons.close_rounded,
+            label: 'Đóng',
+            onPressed: onClose,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WrongTopIconButton extends StatelessWidget {
+  const _WrongTopIconButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: SmartStepsPressEffect(
+        child: IconButton.filled(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 24),
+          style: IconButton.styleFrom(
+            fixedSize: const Size(46, 46),
+            backgroundColor: Colors.white.withValues(alpha: 0.88),
+            foregroundColor: GameColors.muted,
+            shape: const CircleBorder(),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.72)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WrongFeedbackCard extends StatelessWidget {
+  const _WrongFeedbackCard({
+    required this.animation,
+    required this.label,
+    required this.title,
+    required this.body,
+    required this.actionLabel,
+    required this.showHint,
+    required this.onAction,
+    required this.onHint,
+  });
+
+  final Animation<double> animation;
+  final String label;
+  final String title;
+  final String body;
+  final String actionLabel;
+  final bool showHint;
+  final VoidCallback onAction;
+  final VoidCallback onHint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 58),
+          padding: const EdgeInsets.fromLTRB(24, 70, 24, 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: const Color(0xFFF0EEE6), width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x26735C00),
+                blurRadius: 32,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _WrongDecorativeStars(),
+              _DockLabel(label),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: GameColors.ink,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  height: 1.08,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Mình thử cách an toàn hơn nhé.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: GameColors.muted,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  height: 1.24,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _WrongWarningBox(text: showHint ? _hintTextFor(body) : body),
+              const SizedBox(height: 22),
+              _WrongPrimaryButton(label: actionLabel, onPressed: onAction),
+              const SizedBox(height: 14),
+              _WrongSecondaryButton(onPressed: onHint),
+            ],
+          ),
+        ),
+        AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            final bounce = Curves.easeInOutSine.transform(animation.value);
+            return Transform.translate(
+              offset: Offset(0, -bounce * 8),
+              child: child,
+            );
+          },
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              Container(
+                width: 124,
+                height: 60,
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFDAD6),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(80)),
+                ),
+              ),
+              Image.asset(
+                LessonAssets.mascotSulking,
+                width: 148,
+                height: 148,
+                fit: BoxFit.contain,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _hintTextFor(String fallback) {
+    final trimmed = fallback.trim();
+    if (trimmed.isEmpty) {
+      return 'Con hãy dừng lại và chọn cách nhờ người lớn giúp nhé.';
+    }
+    return trimmed;
+  }
+}
+
+class _WrongDecorativeStars extends StatelessWidget {
+  const _WrongDecorativeStars();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Stack(
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Icon(Icons.star_rounded, color: Color(0xFFFFDAD6), size: 22),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Icon(Icons.star_rounded, color: Color(0xFFFFD1A7), size: 18),
+        ),
+      ],
+    );
+  }
+}
+
+class _WrongWarningBox extends StatelessWidget {
+  const _WrongWarningBox({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFDAD6).withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFFDAD6)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_rounded, color: Color(0xFFBA1A1A), size: 24),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: GameColors.ink,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                height: 1.20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WrongPrimaryButton extends StatelessWidget {
+  const _WrongPrimaryButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SmartStepsPressEffect(
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.refresh_rounded, size: 24),
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(58),
+          backgroundColor: GameColors.banana,
+          foregroundColor: GameColors.ink,
+          elevation: 0,
+          textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+            side: const BorderSide(color: Color(0xFFEBC23E), width: 3),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WrongSecondaryButton extends StatelessWidget {
+  const _WrongSecondaryButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SmartStepsPressEffect(
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.lightbulb_rounded, size: 22),
+        label: const Text('Xem gợi ý'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(54),
+          foregroundColor: GameColors.ink,
+          side: const BorderSide(color: Color(0xFFD0C6AE), width: 2),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
           ),
         ),
       ),
