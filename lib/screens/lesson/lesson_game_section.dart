@@ -995,6 +995,16 @@ class _TemplateObserveItem {
   final Alignment alignment;
 }
 
+class _TemplateObserveSceneConfig {
+  const _TemplateObserveSceneConfig({
+    required this.backgroundAsset,
+    required this.items,
+  });
+
+  final String backgroundAsset;
+  final List<_TemplateObserveItem> items;
+}
+
 class _TemplateObserveScreen extends StatefulWidget {
   const _TemplateObserveScreen({
     required this.lesson,
@@ -2232,7 +2242,73 @@ class _TemplateObserveActions extends StatelessWidget {
   }
 }
 
+_TemplateObserveSceneConfig _templateObserveSceneConfigFor(
+  SafetyLesson lesson,
+) {
+  if (lesson.situationId == 201) {
+    return const _TemplateObserveSceneConfig(
+      backgroundAsset: 'assets/images/flashCard/Safety_stranger/step-one.webp',
+      items: [
+        _TemplateObserveItem(
+          id: 'gate',
+          label: 'Cổng trường',
+          icon: Icons.location_on_rounded,
+          alignment: Alignment(-0.16, -0.56),
+        ),
+        _TemplateObserveItem(
+          id: 'safe-adult',
+          label: 'Cô giáo',
+          icon: Icons.school_rounded,
+          alignment: Alignment(-0.08, 0.15),
+        ),
+        _TemplateObserveItem(
+          id: 'stranger',
+          label: 'Người lạ',
+          icon: Icons.person_search_rounded,
+          alignment: Alignment(0.50, 0.15),
+        ),
+      ],
+    );
+  }
+
+  if (lesson.situationId == 301) {
+    return const _TemplateObserveSceneConfig(
+      backgroundAsset: 'assets/images/flashCard/Crossroad/step-one.webp',
+      items: [
+        _TemplateObserveItem(
+          id: 'traffic-light',
+          label: 'Đèn giao thông',
+          icon: Icons.traffic_rounded,
+          alignment: Alignment(-0.79, -0.58),
+        ),
+        _TemplateObserveItem(
+          id: 'car',
+          label: 'Xe ô tô',
+          icon: Icons.directions_car_rounded,
+          alignment: Alignment(-0.20, 0.13),
+        ),
+        _TemplateObserveItem(
+          id: 'waiting-child',
+          label: 'Bé đứng chờ',
+          icon: Icons.accessibility_new_rounded,
+          alignment: Alignment(0.53, 0.20),
+        ),
+      ],
+    );
+  }
+  return _TemplateObserveSceneConfig(
+    backgroundAsset: _defaultTemplateSceneBackgroundFor(lesson),
+    items: _defaultTemplateObserveItemsFor(lesson),
+  );
+}
+
 List<_TemplateObserveItem> _templateObserveItemsFor(SafetyLesson lesson) {
+  return _templateObserveSceneConfigFor(lesson).items;
+}
+
+List<_TemplateObserveItem> _defaultTemplateObserveItemsFor(
+  SafetyLesson lesson,
+) {
   final text = '${lesson.title} ${lesson.mission} ${lesson.topic}'
       .toLowerCase();
 
@@ -2333,8 +2409,12 @@ String _observePromptFor(SafetyLesson lesson) {
 }
 
 String _templateSceneBackgroundFor(SafetyLesson lesson) {
+  return _templateObserveSceneConfigFor(lesson).backgroundAsset;
+}
+
+String _defaultTemplateSceneBackgroundFor(SafetyLesson lesson) {
   return switch (lesson.islandId) {
-    2 => 'assets/images/flashCard/Crossroad/step-one.webp',
+    2 => LessonAssets.island2Background,
     3 => 'assets/images/flashCard/Crossroad/step-one.webp',
     _ => LessonAssets.island1Background,
   };
