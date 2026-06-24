@@ -71,6 +71,10 @@ void main() {
     expect(find.text('Bỏ qua clip'), findsNothing);
 
     await tester.tap(find.text(_fakeFlashcard.optionB));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Bỏ qua clip'), findsOneWidget);
+
+    await tester.tap(find.text('Bỏ qua clip'));
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Hoàn thành màn chơi!'), findsOneWidget);
