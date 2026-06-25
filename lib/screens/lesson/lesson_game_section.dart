@@ -803,6 +803,15 @@ class _LessonGameScreenState extends State<LessonGameScreen> {
       );
 
       widget.onLessonCompleted?.call(profile);
+
+      // Track lesson completion event in GA4
+      AnalyticsService.trackEvent('complete_lesson', {
+        'lesson_id': lesson.situationId,
+        'lesson_title': lesson.title,
+        'lesson_topic': lesson.topic,
+        'island_name': lesson.islandName,
+      });
+
       if (!mounted) {
         return;
       }

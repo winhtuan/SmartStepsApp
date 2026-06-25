@@ -15,6 +15,7 @@ import '../services/supabase_config.dart';
 import '../services/app_audio_controller.dart';
 import '../services/local_profile_storage.dart';
 import '../services/registration_avatar_service.dart';
+import '../services/analytics_service.dart';
 import '../theme/duo_theme.dart';
 import '../utils/platform_environment.dart';
 import '../widgets/duo_components.dart';
@@ -1944,7 +1945,10 @@ class _SmartStepsBottomNavigation extends StatelessWidget {
                 icon: Icons.map_rounded,
                 label: 'Tiến bộ',
                 isSelected: currentIndex == 1,
-                onTap: () => onSelected(1),
+                onTap: () {
+                  onSelected(1);
+                  AnalyticsService.trackEvent('view_progress_tab');
+                },
               ),
               _SmartStepsBottomNavigationItem(
                 key: const ValueKey('practice-tab-button'),
