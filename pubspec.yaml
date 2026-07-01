@@ -73,6 +73,7 @@ flutter:
     - assets/images/avatars/
     - assets/videos/
     - assets/audio/
+    - assets/voices/
     - assets/voices/Crossroad/
     - assets/voices/Safety_smallitems/
     - assets/voices/Safety_stranger/
