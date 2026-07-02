@@ -1112,6 +1112,11 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
         !_isLoadingCatalog &&
         !_isLoadingIslandSituations &&
         _loadingSituationId == null;
+    final completedSituationIds = _profile?.skillProgress
+            .where((p) => p.points > 0)
+            .map((p) => p.situationId)
+            .toSet() ??
+        const <int>{};
 
     return Scaffold(
       body: IndexedStack(
@@ -1135,6 +1140,7 @@ class _SmartStepsCatalogPageState extends State<SmartStepsCatalogPage>
                   loadingSituationId: _loadingSituationId,
                   hasActiveLesson: _activeLesson != null,
                   canStartLesson: canStartLesson,
+                  completedSituationIds: completedSituationIds,
                   onBack: _showIslands,
                   onLocked: _showPremiumRequired,
                   onSelected: (summary) {
@@ -3053,6 +3059,7 @@ class _IslandLessonMapTab extends StatelessWidget {
     required this.loadingSituationId,
     required this.hasActiveLesson,
     required this.canStartLesson,
+    required this.completedSituationIds,
     required this.onBack,
     required this.onLocked,
     required this.onSelected,
@@ -3067,6 +3074,7 @@ class _IslandLessonMapTab extends StatelessWidget {
   final int? loadingSituationId;
   final bool hasActiveLesson;
   final bool canStartLesson;
+  final Set<int> completedSituationIds;
   final VoidCallback onBack;
   final ValueChanged<SituationSummary> onLocked;
   final ValueChanged<SituationSummary> onSelected;
@@ -3092,6 +3100,7 @@ class _IslandLessonMapTab extends StatelessWidget {
               loadingSituationId: loadingSituationId,
               hasActiveLesson: hasActiveLesson,
               canStartLesson: canStartLesson,
+              completedSituationIds: completedSituationIds,
               onLocked: onLocked,
               onSelected: onSelected,
               onStartLesson: onStartLesson,
@@ -3194,6 +3203,7 @@ class _IslandLessonMapStage extends StatelessWidget {
     required this.loadingSituationId,
     required this.hasActiveLesson,
     required this.canStartLesson,
+    required this.completedSituationIds,
     required this.onLocked,
     required this.onSelected,
     required this.onStartLesson,
@@ -3207,6 +3217,7 @@ class _IslandLessonMapStage extends StatelessWidget {
   final int? loadingSituationId;
   final bool hasActiveLesson;
   final bool canStartLesson;
+  final Set<int> completedSituationIds;
   final ValueChanged<SituationSummary> onLocked;
   final ValueChanged<SituationSummary> onSelected;
   final VoidCallback onStartLesson;
@@ -3254,24 +3265,10 @@ class _IslandLessonMapStage extends StatelessWidget {
               isPremium: isPremium,
               activeLessonId: activeLessonId,
               loadingSituationId: loadingSituationId,
+              completedSituationIds: completedSituationIds,
               onLocked: onLocked,
               onSelected: onSelected,
-            ),
-          if (hasActiveLesson)
-            Positioned(
-              left: 18,
-              right: 18,
-              bottom: 18,
-              child: SafeArea(
-                top: false,
-                child: _PillButton(
-                  key: const ValueKey('start-lesson-button'),
-                  label: 'Học bài đã chọn',
-                  icon: Icons.play_arrow_rounded,
-                  color: GameColors.banana,
-                  onPressed: canStartLesson ? onStartLesson : null,
-                ),
-              ),
+              onStartLesson: onStartLesson,
             ),
         ],
       ),
@@ -3286,8 +3283,10 @@ class _IslandLessonPathOverlay extends StatelessWidget {
     required this.isPremium,
     required this.activeLessonId,
     required this.loadingSituationId,
+    required this.completedSituationIds,
     required this.onLocked,
     required this.onSelected,
+    required this.onStartLesson,
   });
 
   final int islandId;
@@ -3295,8 +3294,10 @@ class _IslandLessonPathOverlay extends StatelessWidget {
   final bool isPremium;
   final String? activeLessonId;
   final int? loadingSituationId;
+  final Set<int> completedSituationIds;
   final ValueChanged<SituationSummary> onLocked;
   final ValueChanged<SituationSummary> onSelected;
+  final VoidCallback onStartLesson;
 
   @override
   Widget build(BuildContext context) {
@@ -3325,16 +3326,26 @@ class _IslandLessonPathOverlay extends StatelessWidget {
                   isSelected:
                       activeLessonId ==
                       'situation-${situations[index].situationId}',
+                  isCompleted: completedSituationIds.contains(situations[index].situationId),
                   isLoading:
                       loadingSituationId == situations[index].situationId,
                   isUnlocked: _isSituationUnlocked(
                     situations[index],
                     isPremium,
                   ),
-                  onTap: () =>
-                      _isSituationUnlocked(situations[index], isPremium)
-                      ? onSelected(situations[index])
-                      : onLocked(situations[index]),
+                  onTap: () {
+                    if (_isSituationUnlocked(situations[index], isPremium)) {
+                      final isCurrentSelected = activeLessonId ==
+                          'situation-${situations[index].situationId}';
+                      if (isCurrentSelected) {
+                        onStartLesson();
+                      } else {
+                        onSelected(situations[index]);
+                      }
+                    } else {
+                      onLocked(situations[index]);
+                    }
+                  },
                 ),
               ),
           ],
@@ -3374,6 +3385,7 @@ class _IslandLessonPathNode extends StatelessWidget {
   const _IslandLessonPathNode({
     required this.situation,
     required this.isSelected,
+    required this.isCompleted,
     required this.isLoading,
     required this.isUnlocked,
     required this.onTap,
@@ -3381,6 +3393,7 @@ class _IslandLessonPathNode extends StatelessWidget {
 
   final SituationSummary situation;
   final bool isSelected;
+  final bool isCompleted;
   final bool isLoading;
   final bool isUnlocked;
   final VoidCallback onTap;
@@ -3399,52 +3412,85 @@ class _IslandLessonPathNode extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            key: ValueKey('situation-${situation.situationId}'),
-            onTap: isLoading ? null : onTap,
-            customBorder: const CircleBorder(),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: nodeSize,
-              height: nodeSize,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.96),
-                  width: 7,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: isSelected ? 0.55 : 0.34),
-                    blurRadius: isSelected ? 26 : 16,
-                    offset: const Offset(0, 8),
-                  ),
-                  const BoxShadow(
-                    color: Color(0x3825324B),
-                    blurRadius: 12,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(23),
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    )
-                  : Icon(
-                      isSelected
-                          ? Icons.play_arrow_rounded
-                          : isUnlocked
-                          ? lessonIcon
-                          : Icons.lock_rounded,
-                      color: foreground,
-                      size: isSelected ? 40 : 33,
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                key: ValueKey('situation-${situation.situationId}'),
+                onTap: isLoading ? null : onTap,
+                customBorder: const CircleBorder(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: nodeSize,
+                  height: nodeSize,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.96),
+                      width: 7,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: isSelected ? 0.55 : 0.34),
+                        blurRadius: isSelected ? 26 : 16,
+                        offset: const Offset(0, 8),
+                      ),
+                      const BoxShadow(
+                        color: Color(0x3825324B),
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: isLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(23),
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        )
+                      : Icon(
+                          isSelected
+                              ? Icons.play_arrow_rounded
+                              : isUnlocked
+                              ? lessonIcon
+                              : Icons.lock_rounded,
+                          color: foreground,
+                          size: isSelected ? 40 : 33,
+                        ),
+                ),
+              ),
             ),
-          ),
+            if (isCompleted && !isLoading)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB300),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 2,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x26000000),
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.emoji_events_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 7),
         Container(

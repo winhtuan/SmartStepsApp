@@ -1036,6 +1036,7 @@ class _MiniChallengeStep {
     required this.icon,
     required this.color,
     required this.background,
+    this.imagePath,
   });
 
   final String id;
@@ -1043,6 +1044,7 @@ class _MiniChallengeStep {
   final IconData icon;
   final Color color;
   final Color background;
+  final String? imagePath;
 }
 
 class _TemplateMiniChallengeScreen extends StatefulWidget {
@@ -1073,6 +1075,29 @@ class _TemplateMiniChallengeScreenState
   bool _hasChecked = false;
   bool _showHint = false;
 
+  late final AudioPlayer _instructionPlayer;
+
+  @override
+  void initState() {
+    super.initState();
+    _instructionPlayer = AudioPlayer();
+    _playInstruction();
+  }
+
+  Future<void> _playInstruction() async {
+    try {
+      await _instructionPlayer.play(AssetSource('voices/voice_intro_minigame_arrange.mp3'));
+    } catch (e) {
+      debugPrint('Error playing minigame arrange instruction voice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _instructionPlayer.dispose();
+    super.dispose();
+  }
+
   bool get _canCheck => _selectedIds.length == _steps.length;
 
   bool get _isCorrect {
@@ -1088,24 +1113,16 @@ class _TemplateMiniChallengeScreenState
   }
 
   void _selectStep(_MiniChallengeStep step) {
-    if (_selectedIds.contains(step.id) ||
-        _selectedIds.length >= _steps.length) {
-      return;
-    }
     setState(() {
-      _selectedIds.add(step.id);
+      if (_selectedIds.contains(step.id)) {
+        _selectedIds.remove(step.id);
+      } else {
+        if (_selectedIds.length < _steps.length) {
+          _selectedIds.add(step.id);
+        }
+      }
       _hasChecked = false;
       _showHint = false;
-    });
-  }
-
-  void _removeStepAt(int index) {
-    if (index < 0 || index >= _selectedIds.length) {
-      return;
-    }
-    setState(() {
-      _selectedIds.removeAt(index);
-      _hasChecked = false;
     });
   }
 
@@ -1126,8 +1143,32 @@ class _TemplateMiniChallengeScreenState
     });
     if (_isCorrect) {
       unawaited(HapticFeedback.lightImpact());
+      _playCorrectArrangeVoice();
     } else {
       unawaited(HapticFeedback.mediumImpact());
+    }
+  }
+
+  Future<void> _playCorrectArrangeVoice() async {
+    try {
+      await _instructionPlayer.stop();
+    } catch (_) {}
+
+    final text = '${widget.lesson.title} ${widget.lesson.mission} ${widget.lesson.topic}'
+        .toLowerCase();
+    String fileName;
+    if (text.contains('người lạ')) {
+      fileName = 'voice_correct_arrange_stranger.mp3';
+    } else if (text.contains('qua đường') || text.contains('giao thông')) {
+      fileName = 'voice_correct_arrange_traffic.mp3';
+    } else {
+      fileName = 'voice_correct_arrange_default.mp3';
+    }
+
+    try {
+      await _instructionPlayer.play(AssetSource('voices/$fileName'));
+    } catch (e) {
+      debugPrint('Error playing correct arrange voice summary: $e');
     }
   }
 
@@ -1153,6 +1194,7 @@ class _TemplateMiniChallengeScreenState
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 380;
             final horizontalPadding = compact ? 18.0 : 24.0;
+            final isWrong = _hasChecked && !_isCorrect;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1178,42 +1220,40 @@ class _TemplateMiniChallengeScreenState
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: GameColors.ink,
-                            fontSize: 26,
+                            fontSize: 22,
                             fontWeight: FontWeight.w900,
                             height: 1.15,
                           ),
                         ),
                         const SizedBox(height: 14),
-                        _MiniChallengeOrderPanel(
-                          steps: _steps,
-                          selectedIds: _selectedIds,
-                          onRemoveAt: _removeStepAt,
-                        ),
                         const SizedBox(height: 18),
-                        const Text(
-                          'Chọn bước',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: GameColors.ink,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
                         for (final step in _options) ...[
-                          _MiniChallengeStepButton(
-                            step: step,
-                            isSelected: _selectedIds.contains(step.id),
-                            onPressed: () => _selectStep(step),
-                          ),
-                          const SizedBox(height: 10),
+                          Builder(builder: (context) {
+                            final selIndex = _selectedIds.indexOf(step.id);
+                            final selectedNumber = selIndex != -1 ? selIndex + 1 : null;
+                            
+                            final correctIndex = _steps.indexWhere((item) => item.id == step.id);
+                            final isCorrectPosition = _hasChecked && selectedNumber != null
+                                ? selIndex == correctIndex
+                                : null;
+
+                            return _MiniChallengeStepButton(
+                              step: step,
+                              isSelected: selectedNumber != null,
+                              selectedIndex: selectedNumber,
+                              isCorrectPosition: isCorrectPosition,
+                              onPressed: () => _selectStep(step),
+                            );
+                          }),
+                          const SizedBox(height: 12),
                         ],
-                        _MiniChallengeFeedback(
-                          text: feedbackText,
-                          color: feedbackColor,
-                          showRetry: _hasChecked && !_isCorrect,
-                          onRetry: _tryAgain,
-                        ),
+                        if (!isWrong)
+                          _MiniChallengeFeedback(
+                            text: feedbackText,
+                            color: feedbackColor,
+                            showRetry: false,
+                            onRetry: _tryAgain,
+                          ),
                       ],
                     ),
                   ),
@@ -1221,6 +1261,8 @@ class _TemplateMiniChallengeScreenState
                 _MiniChallengeActions(
                   canCheck: _canCheck,
                   isCorrect: _hasChecked && _isCorrect,
+                  showRetry: isWrong,
+                  onRetry: _tryAgain,
                   onHint: _showHintMessage,
                   onCheck: _checkAnswer,
                   onContinue: widget.onContinue,
@@ -1249,206 +1291,146 @@ class _TemplateMiniChallengeScreenState
   }
 }
 
-class _MiniChallengeOrderPanel extends StatelessWidget {
-  const _MiniChallengeOrderPanel({
-    required this.steps,
-    required this.selectedIds,
-    required this.onRemoveAt,
-  });
-
-  final List<_MiniChallengeStep> steps;
-  final List<String> selectedIds;
-  final ValueChanged<int> onRemoveAt;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE4E3DB), width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14735C00),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Thứ tự của con',
-            style: TextStyle(
-              color: GameColors.muted,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: List.generate(steps.length, (index) {
-              final selectedId = index < selectedIds.length
-                  ? selectedIds[index]
-                  : null;
-              final step = selectedId == null
-                  ? null
-                  : steps.firstWhere((item) => item.id == selectedId);
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: index == steps.length - 1 ? 0 : 8,
-                  ),
-                  child: _MiniChallengeSlot(
-                    index: index,
-                    step: step,
-                    onTap: step == null ? null : () => onRemoveAt(index),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniChallengeSlot extends StatelessWidget {
-  const _MiniChallengeSlot({
-    required this.index,
-    required this.step,
-    required this.onTap,
-  });
-
-  final int index;
-  final _MiniChallengeStep? step;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedStep = step;
-    return Tooltip(
-      message: selectedStep == null ? 'Ô ${index + 1}' : 'Bấm để bỏ chọn',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          height: 76,
-          decoration: BoxDecoration(
-            color: selectedStep?.background ?? const Color(0xFFF0EEE6),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color:
-                  selectedStep?.color.withValues(alpha: 0.42) ??
-                  const Color(0xFFD0C6AE),
-              width: 2,
-            ),
-          ),
-          child: selectedStep == null
-              ? Center(
-                  child: Text(
-                    '${index + 1}',
-                    style: const TextStyle(
-                      color: GameColors.muted,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                )
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      selectedStep.icon,
-                      color: selectedStep.color,
-                      size: 24,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      selectedStep.label,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: selectedStep.color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        height: 1.05,
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MiniChallengeStepButton extends StatelessWidget {
   const _MiniChallengeStepButton({
     required this.step,
     required this.isSelected,
+    required this.selectedIndex,
+    required this.isCorrectPosition,
     required this.onPressed,
   });
 
   final _MiniChallengeStep step;
   final bool isSelected;
+  final int? selectedIndex;
+  final bool? isCorrectPosition;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return SmartStepsPressEffect(
-      enabled: !isSelected,
-      child: FilledButton(
-        onPressed: isSelected ? null : onPressed,
-        style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(58),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          backgroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFF0EEE6),
-          foregroundColor: GameColors.ink,
-          disabledForegroundColor: GameColors.muted,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-            side: BorderSide(
-              color: isSelected
-                  ? const Color(0xFFD0C6AE)
-                  : step.color.withValues(alpha: 0.28),
-              width: 2,
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SmartStepsPressEffect(
+          child: OutlinedButton(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.zero,
+              backgroundColor: isCorrectPosition == true
+                  ? const Color(0xFFE1F8DD)
+                  : isCorrectPosition == false
+                  ? const Color(0xFFFFDAD6)
+                  : isSelected
+                  ? step.background
+                  : Colors.white,
+              side: BorderSide(
+                color: isCorrectPosition == true
+                    ? const Color(0xFF006E1C)
+                    : isCorrectPosition == false
+                    ? const Color(0xFF93000A)
+                    : isSelected
+                    ? step.color
+                    : step.color.withValues(alpha: 0.35),
+                width: isSelected ? 3.5 : 2.5,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(17.5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    height: 128,
+                    color: isSelected ? const Color(0xFFDCDAD0) : step.background,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (step.imagePath != null)
+                          Image.asset(
+                            step.imagePath!,
+                            fit: BoxFit.cover,
+                          )
+                        else
+                          Center(
+                            child: Icon(
+                              step.icon,
+                              color: step.color,
+                              size: 40,
+                            ),
+                          ),
+                        if (isCorrectPosition == true)
+                          Container(
+                            color: const Color(0x1A006E1C),
+                          )
+                        else if (isCorrectPosition == false)
+                          Container(
+                            color: const Color(0x1A93000A),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                    child: Text(
+                      step.label,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isCorrectPosition == true
+                            ? const Color(0xFF006E1C)
+                            : isCorrectPosition == false
+                            ? const Color(0xFF93000A)
+                            : step.color,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
+        if (selectedIndex != null)
+          Positioned(
+            top: -6,
+            right: -6,
+            child: Container(
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: step.background,
-                borderRadius: BorderRadius.circular(21),
+                color: isCorrectPosition == true
+                    ? const Color(0xFF006E1C)
+                    : isCorrectPosition == false
+                    ? const Color(0xFF93000A)
+                    : step.color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
+                  ),
+                ],
               ),
-              child: Icon(step.icon, color: step.color, size: 24),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Text(
-                step.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
+              child: Center(
+                child: Text(
+                  '$selectedIndex',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: GameColors.safe),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 }
@@ -1505,6 +1487,8 @@ class _MiniChallengeActions extends StatelessWidget {
   const _MiniChallengeActions({
     required this.canCheck,
     required this.isCorrect,
+    required this.showRetry,
+    required this.onRetry,
     required this.onHint,
     required this.onCheck,
     required this.onContinue,
@@ -1512,6 +1496,8 @@ class _MiniChallengeActions extends StatelessWidget {
 
   final bool canCheck;
   final bool isCorrect;
+  final bool showRetry;
+  final VoidCallback onRetry;
   final VoidCallback onHint;
   final VoidCallback onCheck;
   final VoidCallback onContinue;
@@ -1531,36 +1517,41 @@ class _MiniChallengeActions extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          SmartStepsPressEffect(
-            child: OutlinedButton.icon(
-              onPressed: onHint,
-              icon: const Icon(Icons.lightbulb_rounded, size: 20),
-              label: const Text('Gợi ý'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(112, 50),
-                foregroundColor: GameColors.ink,
-                side: BorderSide(
-                  color: GameColors.banana.withValues(alpha: 0.45),
-                  width: 2,
+      child: showRetry
+          ? DuoPrimaryButton(
+              label: 'Thử lại',
+              onPressed: onRetry,
+            )
+          : Row(
+              children: [
+                SmartStepsPressEffect(
+                  child: OutlinedButton.icon(
+                    onPressed: onHint,
+                    icon: const Icon(Icons.lightbulb_rounded, size: 20),
+                    label: const Text('Gợi ý'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(112, 50),
+                      foregroundColor: GameColors.ink,
+                      side: BorderSide(
+                        color: GameColors.banana.withValues(alpha: 0.45),
+                        width: 2,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
                 ),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DuoPrimaryButton(
+                    label: isCorrect ? 'Nhận thưởng' : 'Kiểm tra',
+                    onPressed: isCorrect ? onContinue : (canCheck ? onCheck : null),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DuoPrimaryButton(
-              label: isCorrect ? 'Nhận thưởng' : 'Kiểm tra',
-              onPressed: isCorrect ? onContinue : (canCheck ? onCheck : null),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1576,6 +1567,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
         icon: Icons.keyboard_backspace_rounded,
         color: Color(0xFF8B5000),
         background: Color(0xFFFFF0D9),
+        imagePath: 'assets/images/stranger_step_back.webp',
       ),
       _MiniChallengeStep(
         id: 'say-no',
@@ -1583,6 +1575,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
         icon: Icons.record_voice_over_rounded,
         color: Color(0xFF93000A),
         background: Color(0xFFFFDAD6),
+        imagePath: 'assets/images/stranger_say_no.webp',
       ),
       _MiniChallengeStep(
         id: 'tell-teacher',
@@ -1590,6 +1583,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
         icon: Icons.school_rounded,
         color: Color(0xFF006E1C),
         background: Color(0xFFE1F8DD),
+        imagePath: 'assets/images/stranger_tell_teacher.webp',
       ),
     ];
   }
@@ -1602,6 +1596,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
         icon: Icons.pan_tool_alt_rounded,
         color: Color(0xFF93000A),
         background: Color(0xFFFFDAD6),
+        imagePath: 'assets/images/traffic_stop.webp',
       ),
       _MiniChallengeStep(
         id: 'hold-hand',
@@ -1609,6 +1604,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
         icon: Icons.handshake_rounded,
         color: Color(0xFF8B5000),
         background: Color(0xFFFFF0D9),
+        imagePath: 'assets/images/traffic_hold_hand.webp',
       ),
       _MiniChallengeStep(
         id: 'wait-safe',
@@ -1616,6 +1612,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
         icon: Icons.traffic_rounded,
         color: Color(0xFF006E1C),
         background: Color(0xFFE1F8DD),
+        imagePath: 'assets/images/traffic_wait_safe.webp',
       ),
     ];
   }
@@ -1627,6 +1624,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
       icon: Icons.pause_circle_filled_rounded,
       color: Color(0xFF93000A),
       background: Color(0xFFFFDAD6),
+      imagePath: 'assets/images/default_pause.webp',
     ),
     _MiniChallengeStep(
       id: 'safe-choice',
@@ -1634,6 +1632,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
       icon: Icons.verified_rounded,
       color: Color(0xFF8B5000),
       background: Color(0xFFFFF0D9),
+      imagePath: 'assets/images/default_safe_choice.webp',
     ),
     _MiniChallengeStep(
       id: 'ask-adult',
@@ -1641,6 +1640,7 @@ List<_MiniChallengeStep> _miniChallengeStepsFor(SafetyLesson lesson) {
       icon: Icons.supervisor_account_rounded,
       color: Color(0xFF006E1C),
       background: Color(0xFFE1F8DD),
+      imagePath: 'assets/images/default_ask_adult.webp',
     ),
   ];
 }
@@ -1661,6 +1661,29 @@ class _TemplateObserveScreenState extends State<_TemplateObserveScreen> {
   late final List<_TemplateObserveItem> _items = _templateObserveItemsFor(
     widget.lesson,
   );
+
+  late final AudioPlayer _instructionPlayer;
+
+  @override
+  void initState() {
+    super.initState();
+    _instructionPlayer = AudioPlayer();
+    _playInstruction();
+  }
+
+  Future<void> _playInstruction() async {
+    try {
+      await _instructionPlayer.play(AssetSource('voices/voice_intro_minigame_fidning.mp3'));
+    } catch (e) {
+      debugPrint('Error playing minigame finding instruction voice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _instructionPlayer.dispose();
+    super.dispose();
+  }
 
   bool get _canContinue => _foundIds.length == _items.length;
 
